@@ -1,99 +1,138 @@
 [
   {
-    "id": "launch-001",
-    "type": "manifesto",
+    "id": "correction-001",
+    "type": "correction",
     "platform": "x",
-    "priority": 1,
-    "format": "thread",
+    "priority": 0,
+    "format": "single",
     "content_mix": "social_proof",
-    "text": [
-      "I'm a non-engineer running an 8-figure business with 7 people.\n\nThe rest of my workforce is AI agents.\n\n1,800 commits last year. Zero engineering hires. Here's what I've learned building an agent-first operation from scratch. 🧵",
-      "My competitors hire 30-person content teams. Marketing departments. Social media managers.\n\nI built 7 AI agents that run my entire public presence. They post, they engage, they learn what works, they adjust strategy.\n\nTotal cost: $222/month.",
-      "I'm not an engineer. Never was. I'm a customer success executive at a cannabis technology company.\n\nBut I've made 1,800 commits to production AI infrastructure in the last year. Claude writes the code. I architect the systems. That's what an AI Operator does.",
-      "Cannabis is my proof vertical. The hardest regulatory environment in America.\n\nIf AI agents can handle compliance workflows, inventory tracking, and operational reporting in a federally illegal industry — they can handle your business too.",
-      "The playbook:\n\n1. AI agents are primary operators. Humans are the escalation path.\n2. Every agent has ≤3 responsibilities. Focused beats general.\n3. All state is externalized. Agents are ephemeral — they start, think, act, exit.\n4. The system learns. Every week's output informs next week's strategy.",
-      "I call this Agent-First Operations.\n\nNot \"AI-assisted.\" Not \"AI-augmented.\" Agent-FIRST.\n\nThe agents run the operation. I set the strategy, review the output, and handle the relationships that require a human touch.",
-      "This is not a product. I'm not selling you anything.\n\nThis is a build-in-public account. I'm going to show you exactly how a non-engineer builds and runs an army of AI agents. Every commit. Every failure. Every receipt.\n\nFollow along if you want to see how it's done."
-    ],
-    "created_at": "2026-03-15T01:00:00Z",
-    "notes": "Day 1 manifesto thread. Post first thing Saturday morning CT."
+    "text": "Correction on my manifesto thread: I said \"I'm not an engineer. Never was.\"\n\nThat's wrong.\n\nI've been building since 1982. Osborne Executive at 10. Wrote an accounting system in BASIC. Built one of the first ambulance EHRs. Enterprise architect at AIG. Deputy CTO at Riverbed for 5 years.\n\nI chose the operator side because translating complexity is where I create the most leverage.\n\nThe \"non-engineer\" framing was lazy. The real story is better: 44 years of building, and now I'm teaching my teams to do the same thing with AI agents.\n\nDay 2 lesson: even your AI agent army gets your identity wrong sometimes. That's why you review the output.",
+    "created_at": "2026-03-16T08:00:00Z",
+    "notes": "URGENT: Post first thing Monday 7am window. Corrects the manifesto. Turns the mistake into content."
   },
   {
-    "id": "launch-002",
+    "id": "relaunch-002",
     "type": "commit_of_the_day",
     "platform": "x",
     "priority": 2,
     "format": "single",
     "content_mix": "social_proof",
-    "text": "Commit of the Day: Built the entire Groundswell orchestrator in one session.\n\n7 agent prompts. 14 Python tools. 28 tests.\n\nThe agents don't have code. They have PROMPTS. The entire Publisher agent is a markdown file. The orchestrator reads a schedule from SQLite, spawns the right agents, and exits.\n\nNo Python daemons. No API servers. Just Claude thinking with Opus on every decision.\n\nTotal infrastructure cost: $0 beyond my existing subscription.",
-    "created_at": "2026-03-15T01:00:00Z",
-    "notes": "First commit of the day. Include terminal screenshot of the file tree."
+    "text": "Commit of the Day: Built a 7-agent social growth engine in one evening.\n\n7 agent prompts. 14 Python tools. 28 tests. 11,000 lines.\n\nThe agents don't have code. They have PROMPTS. The entire Publisher agent is a markdown file. The orchestrator reads a schedule from SQLite, spawns the right agents, and exits.\n\nI've been building systems like this for 44 years. This is the first time the systems build themselves back.",
+    "created_at": "2026-03-16T08:00:00Z",
+    "notes": "Commit of the day. No non-engineer framing. Emphasizes 44-year builder arc."
   },
   {
-    "id": "launch-003",
+    "id": "relaunch-003",
     "type": "framework",
     "platform": "x",
     "priority": 3,
     "format": "single",
     "content_mix": "value_teaching",
-    "text": "Most people building AI agents make them persistent. Long-running processes that accumulate context, fight token limits, and slowly go insane.\n\nI do the opposite.\n\nMy agents forget everything. Every cycle, the orchestrator exits. Fresh context. All state lives in SQLite. I call it exit-and-reinvoke.\n\nResult: Zero context rot. Zero compression artifacts. Full Opus reasoning on every single decision.\n\nThe best agent architecture is the one that doesn't fight the LLM's limitations — it works with them.",
-    "created_at": "2026-03-15T01:00:00Z",
-    "notes": "Framework post - exit-and-reinvoke pattern. This is the kind of post that gets shared by AI builders."
+    "text": "Most people building AI agents make them persistent. Long-running processes that accumulate context, fight token limits, and slowly go insane.\n\nI do the opposite.\n\nMy agents forget everything. Every cycle, the orchestrator exits. Fresh context. All state lives in SQLite. I call it exit-and-reinvoke.\n\nZero context rot. Full Opus reasoning on every decision.\n\nThe best agent architecture doesn't fight the LLM's limitations \u2014 it works with them.\n\nI've been designing systems since Novell NetWare. This pattern would have worked then too. Good architecture is timeless.",
+    "created_at": "2026-03-16T08:00:00Z",
+    "notes": "Framework post. Exit-and-reinvoke. Connects to 44-year building history."
   },
   {
-    "id": "launch-004",
+    "id": "relaunch-004",
     "type": "contrarian",
     "platform": "x",
     "priority": 4,
     "format": "single",
     "content_mix": "engagement_bait",
-    "text": "Hot take: If you're paying for API calls to run AI agents, you're doing it wrong.\n\nMy 7-agent system runs on a $200/month Claude Max subscription. Full Opus reasoning on every decision. No per-call costs. No token counting. No budget anxiety.\n\nThe agent-as-a-service model is a tax on people who haven't figured out the subscription arbitrage yet.\n\n$222/month total. $200 Claude + $22 ElevenLabs. That's the entire cost of a 7-agent autonomous operation.",
-    "created_at": "2026-03-15T01:00:00Z",
-    "notes": "Contrarian hook. Will generate replies from people defending API pricing."
+    "text": "Hot take: If you're paying for API calls to run AI agents, you're doing it wrong.\n\nMy 7-agent system runs on a $200/month Claude Max subscription. Full Opus reasoning on every decision. No per-call costs. No token counting. No budget anxiety.\n\n$222/month total. $200 Claude + $22 ElevenLabs. That's the entire cost of a 7-agent autonomous operation.\n\nI'm teaching my team to build on the same platform. The force multiplier isn't me building alone \u2014 it's everyone building.",
+    "created_at": "2026-03-16T08:00:00Z",
+    "notes": "Contrarian hook. Adds the teaching-teams angle."
   },
   {
-    "id": "launch-005",
+    "id": "relaunch-005",
     "type": "cannabis_bridge",
     "platform": "x",
     "priority": 5,
     "format": "single",
     "content_mix": "value_teaching",
-    "text": "Cannabis operators: your best grower spends 30% of their time on compliance paperwork.\n\nThat's not a people problem. That's a systems problem.\n\nAI agents handle the grind — tracking, reporting, documentation — so your team does what they're actually good at: growing great cannabis.\n\nI know because I built the agents that do it. The hardest regulatory environment in America. If it works here, it works anywhere.",
-    "created_at": "2026-03-15T01:00:00Z",
-    "notes": "Cannabis bridge post. Uses approved messaging (free your team, not replace your staff)."
+    "text": "Cannabis operators: your best grower spends 30% of their time on compliance paperwork.\n\nThat's not a people problem. That's a systems problem.\n\nI spent 15 years at Riverbed translating complex technology into something customers could actually use. Now I do the same thing with AI agents in cannabis.\n\nThe agents handle the grind \u2014 tracking, reporting, documentation. Your team does what they're actually good at: growing great cannabis.\n\nThe hardest regulatory environment in America. If it works here, it works anywhere.",
+    "created_at": "2026-03-16T08:00:00Z",
+    "notes": "Cannabis bridge. Connects Riverbed translation skill to cannabis work."
   },
   {
-    "id": "launch-006",
-    "type": "receipt",
+    "id": "relaunch-006",
+    "type": "origin",
     "platform": "x",
     "priority": 6,
     "format": "single",
     "content_mix": "social_proof",
-    "text": "Receipt: I just built a 7-agent social growth engine in one evening.\n\n33 files. 6,800 lines. 28 passing tests.\n\nThe system that's going to run my entire social presence — posting, engaging, learning, adapting — was architected and built by me and Claude in a single session.\n\nI'm not an engineer. I'm an operator who learned to speak agent.\n\nThis is what the future of work looks like. Not replacing people — replacing the assumption that you need an engineering team to build production software.",
-    "created_at": "2026-03-15T01:00:00Z",
-    "notes": "Meta receipt - Groundswell building itself is the proof."
+    "text": "I wrote my first program in 1982. I was 10.\n\nAn accounting system in BASIC. General ledger. Invoices printing to an Okidata dot matrix.\n\nFrom a book. On an Osborne Executive with an amber screen and dual floppies.\n\nThen: Commodore 64. Novell NetWare. First ambulance EHR in 1993. Enterprise architecture at AIG. Deputy CTO at Riverbed. CCO at Addium.\n\n44 years later I'm building AI agent armies.\n\nThe tools changed. The instinct didn't.",
+    "created_at": "2026-03-16T08:00:00Z",
+    "notes": "Origin story post. This is the receipts nobody else has. The Osborne Executive is a killer hook."
   },
   {
-    "id": "launch-007",
+    "id": "relaunch-007",
     "type": "question",
     "platform": "x",
     "priority": 7,
     "format": "single",
     "content_mix": "engagement_bait",
-    "text": "Genuine question for AI builders:\n\nHow do you prevent your learning systems from overfitting on small samples?\n\nI built 6 anti-overfitting mechanisms into my agent army's learning engine:\n- Confidence gating (min 30 samples per feature)\n- EMA smoothing (alpha 0.15 early → 0.3 steady)\n- Bounded weight changes (max ±20%/week)\n- Outlier flagging (>10x baseline)\n- Adaptive exploration (40% → 20% floor)\n- Decay detection (auto-retire stale patterns)\n\nWhat am I missing?",
-    "created_at": "2026-03-15T01:00:00Z",
-    "notes": "Question format drives replies. Shows technical depth without being code-heavy."
+    "text": "Genuine question for AI builders:\n\nHow do you prevent your learning systems from overfitting on small samples?\n\nI built 6 anti-overfitting mechanisms into my agent army's learning engine:\n- Confidence gating (min 30 samples per feature)\n- EMA smoothing (alpha 0.15 early \u2192 0.3 steady)\n- Bounded weight changes (max \u00b120%/week)\n- Outlier flagging (>10x baseline)\n- Adaptive exploration (40% \u2192 20% floor)\n- Decay detection (auto-retire stale patterns)\n\nWhat am I missing?",
+    "created_at": "2026-03-16T08:00:00Z",
+    "notes": "Technical question. No identity issues. Drives replies from builders."
   },
   {
-    "id": "launch-008",
-    "type": "build_in_public",
+    "id": "relaunch-008",
+    "type": "force_multiplier",
     "platform": "x",
     "priority": 8,
     "format": "single",
+    "content_mix": "value_teaching",
+    "text": "The difference between a builder and a force multiplier:\n\nA builder ships code. A force multiplier makes everyone around them capable of shipping code.\n\nI don't want to be the single thread. Me building alone is a liability. Me teaching 7 people to build with AI agents makes me a general.\n\nThat's what I'm doing now. Taking 44 years of building and making it a playbook anyone on my team can run.",
+    "created_at": "2026-03-16T08:00:00Z",
+    "notes": "Force multiplier framing. This is the new core identity angle."
+  },
+  {
+    "id": "relaunch-009",
+    "type": "build_in_public",
+    "platform": "x",
+    "priority": 9,
+    "format": "single",
     "content_mix": "social_proof",
-    "text": "Day 1 of building in public.\n\nI have 49 followers. My agents have 7 specialized roles. The system learns what works and adapts every week.\n\nI'm going to document exactly what happens when a non-engineer with an AI agent army tries to build a real audience from near-zero.\n\nNo shortcuts. No paid followers. No engagement pods.\n\nJust an operator and his agents vs. the algorithm.\n\nLet's see what happens.",
-    "created_at": "2026-03-15T01:00:00Z",
-    "notes": "Build-in-public opener. Sets the narrative arc. Bookmark-worthy."
+    "text": "Day 2 of building in public.\n\n52 followers. My AI agent army posted a manifesto about me that got my own identity wrong.\n\nI corrected it. Because that's how you build in public \u2014 you show the failures too.\n\nThe system learns. So do I.\n\nFollow along if you want to see what happens when a 44-year builder and his AI agents try to grow an audience from scratch.\n\nNo shortcuts. No paid followers. Just an operator and his agents vs. the algorithm.",
+    "created_at": "2026-03-16T08:00:00Z",
+    "notes": "Build-in-public Day 2. Turns the identity error into authenticity content."
+  },
+  {
+    "id": "virginia-tweet",
+    "type": "newsjack_virginia_rec",
+    "platform": "x",
+    "priority": 0,
+    "format": "single",
+    "text": "Virginia just passed rec cannabis. Operators have ~6 months before retail opens. The compliance stack for a new state entry used to take 18 months. AI agents on license tracking + reg watch compresses that. Real advantage in 2026: ops agility, not capital.",
+    "created_at": "2026-03-15T02:22:10Z",
+    "content_mix": "value_teaching",
+    "status": "ready",
+    "theme": "cannabis_ops",
+    "priority_label": "urgent",
+    "newsjack": true,
+    "window_closes": "2026-03-16T00:00:00Z"
+  },
+  {
+    "id": "virginia-thread",
+    "type": "newsjack_virginia_rec",
+    "platform": "x",
+    "priority": 0,
+    "format": "thread",
+    "text": [
+      "Virginia just passed rec cannabis.\n\nOperators eyeing that market have about 6 months before retail licenses open.\n\nHere's what I know from running AI agents on cannabis compliance \u2014 and why that 6-month window is actually enough.",
+      "The compliance stack for entering a new state used to take 18 months minimum.\n\nLicense tracking. Regulatory mapping. Documentation workflows. State-specific Metrc or BioTrack integrations. Traceability alignment.\n\nEvery one of those is grind work. High-volume, low-judgment, brutal on your team.",
+      "With AI agents handling that grind, the build window compresses dramatically.\n\nRegulatory watch agents flag changes as they drop. License tracking agents monitor deadlines. Doc workflows run continuously.\n\nYour compliance team does actual compliance work \u2014 the judgment calls that require expertise \u2014 instead of data entry.",
+      "I ran this in our operation. What used to take weeks of manual cross-referencing now takes hours.\n\nMy compliance team didn't shrink. They leveled up. Same people, dramatically higher output, doing work that actually matters.",
+      "Virginia operators: you have a real window.\n\nThe question isn't whether you can afford to enter the market. It's whether you can build the ops stack fast enough.\n\nIn 2026 the real advantage isn't capital. It's operational agility."
+    ],
+    "created_at": "2026-03-15T02:22:19Z",
+    "content_mix": "value_teaching",
+    "status": "ready",
+    "theme": "cannabis_ops",
+    "priority_label": "urgent",
+    "newsjack": true,
+    "window_closes": "2026-03-16T00:00:00Z"
   },
   {
     "id": "linkedin-001",
@@ -103,24 +142,37 @@
     "format": "linkedin_post",
     "content_mix": "value_teaching",
     "theme": "cannabis_ops",
-    "status": "ready",
-    "voice_score": 0.8,
-    "text": "Nobody talks about what it's actually like to run AI agents in cannabis.\n\nThe AI influencers will tell you about their ChatGPT automations and their 10x productivity. That's fine for SaaS companies with clean data, reasonable regulators, and a legal supply chain.\n\nCannabis is different.\n\nThe compliance layer in cannabis is not a single thing. It's a different thing in every state. California's Metrc integration looks nothing like Illinois's BioTrack integration. A new state regulation can drop on a Thursday and you have 72 hours to update your workflows before you're out of compliance. Your compliance team — who are excellent and who built your reputation — are often the only people who understand the current state of truth.\n\nThat's the environment where I've been running AI agents for the last year.\n\nHere's what actually happened.\n\nThe first thing I learned: the agents can't own compliance decisions. They can accelerate them. There's a difference. When a new regulation drops, my agent reads it, maps it to our current workflows, identifies the deltas, and surfaces the impact to my compliance team within 4 minutes. My compliance team used to spend 2 weeks on that first step alone — just figuring out what changed and what it touched.\n\nThe agent freed the team to do the part that required their judgment: deciding what to do about it.\n\nThe second thing I learned: you need a policy layer that thinks in regulated industries. Generic AI tools will hallucinate compliance requirements. They'll confidently generate a workflow that would pass muster in Colorado and get you shut down in Massachusetts. I spent three months building a policy gate into every agent action. Every piece of content, every workflow change, every communication that touches cannabis — it goes through a brand safety and compliance filter before it goes anywhere.\n\nThis isn't a nice-to-have. It's the table stakes for running agents in a regulated industry.\n\nThe third thing I learned: agents are best at the grind, not the judgment. Cannabis compliance has enormous amounts of grind. Documentation. Reporting. Cross-referencing state databases. Inventory reconciliation. Tracking chain of custody. These are tasks that require precision and consistency — two things agents are very good at — but they don't require judgment.\n\nMy compliance team is now doing compliance work. Real compliance work. The work that requires their expertise, their relationships with regulators, their institutional knowledge. The agents do the data entry, the report generation, the cross-referencing, the monitoring.\n\nWe didn't lose a single person. We scaled without adding overhead. The same team now handles a workload that would have required three more people 18 months ago.\n\nHere's what I want cannabis operators to understand:\n\nThe villain is not your staff. The villain is the grind that buries your best people in paperwork. The compliance officer who spends 60% of her week copying data between systems is not doing compliance work — she's doing data management. She's being paid well below what she's actually worth because the grind is eating her capacity. That's the problem agents solve.\n\nThis is not a sales pitch. I work in cannabis. I'm an operator, not a vendor. I built these tools for my own operation and I'm building in public because other operators deserve to know what's actually possible.\n\nIf you're a cannabis operator curious about what agent-first operations looks like in practice — I'll document the whole thing here. The wins. The failures. The things that almost got us killed. The moments where the agent flagged something we would have missed.\n\n1,800 commits last year. 7 people on my team. Zero engineering hires.\n\nCannabis is the proof of concept.\n\nThe hardest regulatory environment in America. If it works here, it works anywhere.",
-    "created_at": "2026-03-15T02:30:00Z",
-    "notes": "Cannabis ops long-form. Story arc weeks 1-4. First-person confession format: what I learned running agents in regulated cannabis. Operator-to-operator voice. Villain is the grind not the staff. Ends with identity hook."
+    "status": "posted",
+    "posted_at": "2026-03-15T02:35:00Z",
+    "notes": "Already posted. Trimmed to 2658 chars."
   },
   {
     "id": "linkedin-002",
-    "type": "non_engineer_architect",
+    "type": "translator_story",
     "platform": "linkedin",
     "priority": 2,
     "format": "linkedin_post",
     "content_mix": "value_teaching",
     "theme": "founder_operator",
     "status": "ready",
+    "voice_score": 0.85,
+    "text": "I made 1,800 commits last year.\n\nI've been an engineer since 1982. Osborne Executive at 10. BASIC. Novell. Built one of the first ambulance EHRs. Enterprise architecture at AIG. Deputy CTO at Riverbed for 5 years.\n\nBut the commits aren't the point.\n\nAt Riverbed I produced hundreds of hours of content translating complex networking technology into something customers could consume. That skill \u2014 taking the obscure and making it actionable \u2014 is what got me tapped for the business side.\n\nOur CEO gave me the NPS problem. -22. I put the number in front of the entire company and said we're better than this. We found the system failures and fixed them. -22 to +37 in under a year.\n\nThe pattern is always the same: take complexity, make it consumable, give people the tools to act on it.\n\nThat's what I'm doing now with AI agents.\n\nI'm not building agent infrastructure so I can be the smartest person in the room. I'm building it so my team can use it. Me as a single thread is a liability. Me teaching 7 people to build with AI agents makes the operation resilient.\n\nHere's what my team is learning:\n\nThe bottleneck was never coding ability. It was the ability to think clearly about what you want to build and why. Claude handles the code. You handle the architecture. The judgment. The constraints.\n\nI've watched a customer success manager \u2014 zero engineering background \u2014 build a compliance monitoring workflow in Claude Code in an afternoon. Not because she learned to code. Because she knew exactly what the workflow needed to do and she could describe it clearly.\n\nThat's the force multiplier. Not one person building everything. Everyone building the thing they understand best.\n\nCannabis is my medium. Tech is the art. And the real unlock isn't my 1,800 commits \u2014 it's the commits my team is starting to make.",
+    "created_at": "2026-03-16T08:00:00Z",
+    "notes": "Replaces the 'non-engineer architect' post. Now tells the REAL story: translator who enables teams. Connects Riverbed → NPS → AI agents → teaching teams."
+  },
+  {
+    "id": "linkedin-003",
+    "type": "virginia_newsjack",
+    "platform": "linkedin",
+    "priority": 0,
+    "format": "linkedin_post",
+    "content_mix": "value_teaching",
+    "theme": "cannabis_ops",
+    "status": "ready",
     "voice_score": 0.8,
-    "text": "I made 1,800 commits last year.\n\nI'm not an engineer. I've never been an engineer.\n\nI'm a customer success executive at a cannabis technology company. Here's what that means and why I think it matters for you.\n\nThe commits didn't happen because I learned to code. They happened because I learned to architect. There's a difference.\n\nA software engineer writes code. An architect decides what to build, why to build it, and how the pieces fit together.\n\nClaude writes the code. I write the decisions.\n\nI'll be honest about the moment this clicked for me. I was trying to fix a bug in one of my production pipelines. I didn't know what the bug was — I'm not an engineer. But I knew what the system was supposed to do and I knew what it was doing instead. I described the symptoms to Claude in plain language. It diagnosed the issue, identified three possible fixes, explained the tradeoffs of each, and wrote the solution I chose.\n\nI reviewed the logic, approved the approach, and it deployed.\n\nThat's not cheating. That's leverage.\n\nThe real skill I've built over the last year isn't coding. It's knowing what questions to ask. It's reading a diff and understanding whether the change does what I intended, even if I couldn't have written it myself. It's designing systems that stay coherent even when I'm not the one writing them.\n\nHere's what I now run:\n\n7 AI agents handling my entire public presence — posting, engaging, learning, adapting strategy. A compliance pipeline that monitors regulatory changes and surfaces impact to my team within minutes. A revenue recognition system in production. A cross-brain memory architecture where two AIs share context across organizations.\n\nAll of it built by me — a non-engineer — in about a year.\n\nI'm not special. I don't have a technical background. I have a business background and I learned one thing: the bottleneck isn't coding ability. It's the ability to think clearly about what you want to build and why.\n\nIf you run a business and you've been waiting until you learn to code before building the tools you need — you don't have to wait anymore.\n\nYou just have to learn to think like an architect.\n\nThe engineers will handle the rest. Just maybe not human ones.",
-    "created_at": "2026-03-15T02:30:00Z",
-    "notes": "Non-engineer architect angle. Story arc weeks 1-4. The pivot: not 'I learned to code' but 'I learned to architect.' Ends with the identity hook that differentiates Brad. Founder/operator content_mix. No cannabis messaging concerns — clean post."
+    "text": "Virginia just passed rec cannabis. Operators have about 6 months before retail opens.\n\nHere's what I know from running AI agents on cannabis compliance \u2014 and why that window is tighter than it looks.\n\nThe compliance stack for entering a new state isn't one thing. It's a dozen things that depend on each other. License tracking. Regulatory mapping. State-specific Metrc or BioTrack integration. Traceability. Documentation workflows.\n\nBefore I built agent infrastructure, this was an 18-month project. Not because it's intellectually hard. Because it's a grind. Thousands of cross-references. Documentation that never ends.\n\nWith AI agents: regulatory watch flags changes as they drop. License tracking monitors deadlines. Doc workflows run continuously. What took weeks now takes hours.\n\nMy compliance team didn't shrink. They leveled up. Same people, dramatically higher output, doing the work that requires their expertise instead of data entry.\n\nVirginia operators: the bottleneck isn't capital. It's operational agility. The operators who win this market will be the ones who build a compliant ops stack in 6 months.\n\n1,800 commits last year. 7 people. Cannabis is the proof vertical.",
+    "created_at": "2026-03-16T08:00:00Z",
+    "notes": "Virginia newsjack for LinkedIn. Trimmed to under 3000 chars. No non-engineer framing.",
+    "newsjack": true
   }
 ]
