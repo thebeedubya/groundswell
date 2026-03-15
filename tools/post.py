@@ -29,7 +29,7 @@ import uuid
 # ---------------------------------------------------------------------------
 
 REQUIRED_CREDS = ["X_API_KEY", "X_API_SECRET", "X_ACCESS_TOKEN", "X_ACCESS_TOKEN_SECRET"]
-ALL_CREDS = REQUIRED_CREDS + ["X_BEARER_TOKEN"]
+ALL_CREDS = REQUIRED_CREDS + ["X_BEARER_TOKEN", "LINKEDIN_ACCESS_TOKEN", "LINKEDIN_PERSON_ID"]
 
 
 def load_env():
@@ -226,19 +226,65 @@ def cmd_verify(args):
             emit(_api_error(e))
 
 
+def post_to_linkedin(text, person_id, access_token):
+    """Post to LinkedIn via the Posts API. Pure stdlib."""
+    url = "https://api.linkedin.com/rest/posts"
+    payload = {
+        "author": person_id,
+        "commentary": text,
+        "visibility": "PUBLIC",
+        "distribution": {
+            "feedDistribution": "MAIN_FEED",
+            "targetEntities": [],
+            "thirdPartyDistributionChannels": [],
+        },
+        "lifecycleState": "PUBLISHED",
+    }
+    data = json.dumps(payload).encode("utf-8")
+    req = urllib.request.Request(
+        url,
+        data=data,
+        headers={
+            "Authorization": f"Bearer {access_token}",
+            "Content-Type": "application/json",
+            "LinkedIn-Version": "202602",
+            "X-Restli-Protocol-Version": "2.0.0",
+        },
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(req) as resp:
+            return {
+                "ok": True,
+                "platform": "linkedin",
+                "status": resp.status,
+                "post_id": resp.headers.get("x-restli-id", "unknown"),
+            }
+    except urllib.error.HTTPError as e:
+        body = e.read().decode("utf-8", errors="replace")
+        return {"ok": False, "platform": "linkedin", "error": e.code, "detail": body}
+
+
 def cmd_linkedin(args):
     text = args.text
     if not text:
         emit({"ok": False, "error": "missing_text", "message": "--text is required"})
+        return
 
-    emit({
-        "ok": True,
-        "dry_run": True,
-        "platform": "linkedin",
-        "text": text,
-        "post_id": None,
-        "message": "LinkedIn posting not yet implemented",
-    })
+    env = load_env()
+    token = env.get("LINKEDIN_ACCESS_TOKEN", "")
+    person_id = env.get("LINKEDIN_PERSON_ID", "")
+
+    if not token or not person_id:
+        emit({
+            "ok": False,
+            "error": "missing_credentials",
+            "message": "Set LINKEDIN_ACCESS_TOKEN and LINKEDIN_PERSON_ID in ~/.zsh_env",
+        })
+        return
+
+    result = post_to_linkedin(text, person_id, token)
+    emit(result)
 
 
 def cmd_threads(args):
