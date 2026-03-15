@@ -192,11 +192,47 @@ def generate_entry(conn, date_str):
     try:
         intel_items = conn.execute(
             "SELECT headline FROM intel_feed WHERE created_at >= ? AND created_at <= ? "
-            "ORDER BY relevance_score DESC LIMIT 3",
+            "ORDER BY relevance_score DESC LIMIT 5",
             (day_start, day_end),
         ).fetchall()
         for item in intel_items:
             highlights.append(f"Intel: {item['headline']}")
+    except Exception:
+        pass
+
+    # Pull git commits from all repos for this day
+    repos = [
+        ("groundswell", REPO_ROOT),
+        ("dbradwood.com", os.path.expanduser("~/Projects/dbradwood.com")),
+        ("forge-ecosystem", os.path.expanduser("~/Projects/forge-ecosystem")),
+        ("forge-brain", os.path.expanduser("~/Projects/forge-brain")),
+        ("leroy", os.path.expanduser("~/Projects/leroy")),
+    ]
+    for repo_name, repo_path in repos:
+        if not os.path.isdir(repo_path):
+            continue
+        try:
+            result = subprocess.run(
+                ["git", "log", f"--since={date_str}T00:00:00", f"--until={date_str}T23:59:59",
+                 "--oneline", "--no-merges", "--format=%s"],
+                cwd=repo_path, capture_output=True, text=True, timeout=10,
+            )
+            for line in result.stdout.strip().split("\n"):
+                line = line.strip()
+                if line and not line.startswith("Co-Authored"):
+                    highlights.append(f"Commit ({repo_name}): {line}")
+        except Exception:
+            pass
+
+    # Pull backlog status
+    try:
+        backlog_path = os.path.join(REPO_ROOT, "data", "backlog.json")
+        if os.path.exists(backlog_path):
+            with open(backlog_path) as f:
+                backlog = json.load(f)
+            pending = len([b for b in backlog if not b.get("posted_at")])
+            if pending > 0:
+                highlights.append(f"Backlog: {pending} posts queued and ready")
     except Exception:
         pass
 
