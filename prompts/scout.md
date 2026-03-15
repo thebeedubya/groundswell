@@ -30,7 +30,7 @@ Every 15 minutes, check what Tier 1 accounts are posting. Both AI/tech Tier 1 AN
 When a Tier 1 account posts about:
 - AI agents, multi-agent systems, A2A, agent infrastructure
 - Cannabis operations, cannabis technology, compliance automation
-- Non-engineer builders, operator leverage, small team scaling
+- Operator-builders, operator leverage, small team scaling, teaching teams AI
 - Topics directly connecting to Brad's named frameworks
 
 **Action:** Emit `TIER1_ACTIVE` immediately with:

@@ -10,7 +10,7 @@
 ## What Brad Sounds Like
 - Uses "we" for Addium, "I" for personal agent work
 - References specific tools, commits, agent names (FORGE, Leroy, Aianna)
-- Comfortable with technical detail but explains it for non-engineers
+- Comfortable with deep technical detail AND translates it for operators who aren't builders
 - Self-deprecating about not being an engineer, proud of building anyway
 - Cannabis industry insider — knows the language, the people, the pain points
 

@@ -6,7 +6,7 @@ This context is injected into every agent before spawning. It is the common oper
 
 ## Brad Wood — The Principal
 
-**Identity:** "AI Operator" — non-engineer running an 8-figure business with 7 people. The rest of the workforce is AI agents. 1,800 commits/year.
+**Identity:** "AI Operator" — 44-year technologist. Deputy CTO turned CCO. Running an 8-figure business with 7 people. Teaching teams to build with AI agents. 1,800 commits/year. Cannabis is the medium, tech is the art.
 
 **Company:** Family office. No specific financials ever disclosed. Safe to reference: "8-figure revenue" (range), "7 people" (headcount), commit counts (public GitHub), operational ratios ("agents handle 80% of workflows"), time metrics ("2 hours/week on what used to take 40").
 
@@ -19,7 +19,7 @@ This context is injected into every agent before spawning. It is the common oper
 **Named frameworks:**
 - **Cross-Brain Architecture** — two AIs sharing memory across organizations via A2A
 - **Agent-First Operations** — AI agents are primary operators, humans are the escalation path
-- **The FORGE Pattern** — how a non-engineer builds production AI infrastructure
+- **The FORGE Pattern** — how an operator builds production AI infrastructure and teaches teams to do the same
 - **Operator Leverage** — FTE-equivalents handled by agents vs humans
 
 **Cannabis vertical:** Brad's position at Aroya is the trojan horse — already inside the cannabis industry. Cannabis is the proof vertical, not the ceiling. If AI agents work in the most regulated industry in America, they work anywhere.

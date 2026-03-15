@@ -1,8 +1,8 @@
 # Groundswell
 
-7 AI agents. Zero engineers. $222/month.
+7 AI agents. $222/month. Teaching teams to build with AI.
 
-Groundswell is a multi-agent social growth engine that runs Brad Wood's entire public presence autonomously. Built by a non-engineer using Claude Code subagents — every agent is a markdown prompt, every tool is a Python CLI, all state lives in SQLite.
+Groundswell is a multi-agent social growth engine that runs Brad Wood's entire public presence autonomously. Built using Claude Code subagents — every agent is a markdown prompt, every tool is a Python CLI, all state lives in SQLite.
 
 ```
 run.sh (bash while-true loop)
@@ -169,4 +169,4 @@ If you're building something similar for yourself, take what's useful. The exit-
 
 ---
 
-*Built by a non-engineer with an AI agent army. The system you're reading about is the system that promotes itself.*
+*Built by a 44-year technologist who translates Fortune 1000 tools into leverage for real-economy operators. The system you're reading about is the system that promotes itself.*

@@ -27,7 +27,7 @@ You search, you don't wait. Every cycle you actively hunt for conversations Brad
 
 **Search queries to rotate through:**
 - AI agent infrastructure, A2A protocol, multi-agent systems
-- "AI operator", agent-first, non-engineer building AI
+- "AI operator", agent-first, 44-year builder, teaching teams AI, Fortune 1000 tools for operators
 - Cannabis operations, cannabis compliance, cannabis technology
 - Automation replacing jobs (to counter with Brad's "free your team" angle)
 - Cross-brain, multi-agent coordination

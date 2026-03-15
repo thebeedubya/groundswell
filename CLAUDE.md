@@ -19,5 +19,5 @@ Groundswell is Brad Wood's multi-agent social growth engine. It is NOT a product
 - 7 agents: Orchestrator, Publisher, Outbound Engager, Inbound Engager, Analyst, Creator, Scout
 - Policy/Safety is a shared service, not an agent
 - Budget: $500/month — local inference where possible, no per-call API costs for routine operations
-- Brad's identity: "AI Operator" — non-engineer running 8-figure business with AI agents. Cannabis is proof vertical.
+- Brad's identity: "AI Operator" — 44-year technologist, Deputy CTO turned CCO. Translates Fortune 1000 tools for real-economy operators. Teaching teams to build with AI. Cannabis is proof vertical.
 - North star: Advisory pipeline inbound. MJBizCon Jan 2027 speaker slot.
