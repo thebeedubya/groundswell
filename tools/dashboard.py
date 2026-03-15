@@ -106,7 +106,8 @@ def get_pending_signals(conn):
 
 def get_quick_stats(conn):
     today = datetime.now(timezone.utc).strftime("%Y-%m-%dT")
-    one_hour_ago = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:")
+    from datetime import timedelta
+    one_hour_ago = (datetime.now(timezone.utc) - timedelta(hours=1)).isoformat().replace("+00:00", "Z")
 
     posts_today = conn.execute(
         "SELECT COUNT(*) as cnt FROM events WHERE event_type LIKE '%post%' AND timestamp >= ?",

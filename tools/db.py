@@ -32,46 +32,25 @@ import sqlite3
 import sys
 from datetime import datetime, timedelta, timezone
 
-
-# ---------------------------------------------------------------------------
-# Paths
-# ---------------------------------------------------------------------------
-
-REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-DEFAULT_DB_PATH = os.path.join(REPO_ROOT, "data", "groundswell.db")
+from _common import (
+    DB_PATH as DEFAULT_DB_PATH,
+    emit,
+    fail,
+    now_iso,
+    get_db,
+    rows_to_list,
+)
 
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
 
-def now_iso():
-    return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
-
-
 def get_connection(db_path=None):
-    path = db_path or DEFAULT_DB_PATH
-    os.makedirs(os.path.dirname(path), exist_ok=True)
-    conn = sqlite3.connect(path)
-    conn.execute("PRAGMA journal_mode=WAL")
+    """DB connection with foreign keys enabled (extends _common.get_db)."""
+    conn = get_db(db_path)
     conn.execute("PRAGMA foreign_keys=ON")
-    conn.row_factory = sqlite3.Row
     return conn
-
-
-def emit(data):
-    json.dump(data, sys.stdout, indent=2, default=str)
-    sys.stdout.write("\n")
-    sys.exit(0)
-
-
-def fail(msg):
-    print(msg, file=sys.stderr)
-    sys.exit(1)
-
-
-def rows_to_list(rows):
-    return [dict(r) for r in rows]
 
 
 # ---------------------------------------------------------------------------

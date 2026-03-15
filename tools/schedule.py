@@ -208,9 +208,9 @@ def cmd_due(args):
     # Check brand_safety in strategy_state if the table exists
     try:
         row = conn.execute(
-            "SELECT value FROM strategy_state WHERE key = 'brand_safety'"
+            "SELECT value FROM strategy_state WHERE key = 'brand_safety_color'"
         ).fetchone()
-        if row and row["value"] == "BLACK":
+        if row and row["value"] and "BLACK" in row["value"]:
             print(json.dumps({"due": [], "warning": "brand_safety is BLACK — all tasks halted"}))
             conn.close()
             return

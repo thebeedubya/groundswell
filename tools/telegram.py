@@ -59,19 +59,8 @@ def fail(msg):
 
 def load_env():
     """Load credentials: env vars > ~/.zsh_env > hardcoded defaults."""
-    env = {}
-    zsh_env = os.path.expanduser("~/.zsh_env")
-    if os.path.exists(zsh_env):
-        with open(zsh_env) as f:
-            for line in f:
-                line = line.strip()
-                if line.startswith("export ") and "=" in line:
-                    key, _, val = line[7:].partition("=")
-                    val = val.strip("'\"")
-                    env[key] = val
-    for key in ["TELEGRAM_BOT_TOKEN", "TELEGRAM_CHAT_ID"]:
-        env[key] = os.environ.get(key, env.get(key, ""))
-    return env
+    from _x_auth import load_env as _load_env
+    return _load_env(keys=["TELEGRAM_BOT_TOKEN", "TELEGRAM_CHAT_ID"])
 
 
 def get_credentials():

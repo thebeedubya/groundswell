@@ -33,14 +33,20 @@ try:
 except ImportError:
     yaml = None
 
+from _common import (
+    REPO_ROOT,
+    DB_PATH as DEFAULT_DB_PATH,
+    CONFIG_PATH,
+    emit,
+    fail,
+    now_iso,
+    rows_to_list,
+)
+
 
 # ---------------------------------------------------------------------------
-# Paths & constants
+# Constants
 # ---------------------------------------------------------------------------
-
-REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-DEFAULT_DB_PATH = os.path.join(REPO_ROOT, "data", "groundswell.db")
-CONFIG_PATH = os.path.join(REPO_ROOT, "config.yaml")
 
 AUDIENCE_CLUSTERS = {
     "ai_builder": re.compile(
@@ -93,33 +99,12 @@ DEFAULT_LEARNING_CONFIG = {
 # Helpers
 # ---------------------------------------------------------------------------
 
-def now_iso():
-    return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
-
-
 def get_connection(db_path=None):
-    path = db_path or DEFAULT_DB_PATH
-    os.makedirs(os.path.dirname(path), exist_ok=True)
-    conn = sqlite3.connect(path)
-    conn.execute("PRAGMA journal_mode=WAL")
+    """DB connection with foreign keys enabled (extends _common.get_db)."""
+    from _common import get_db
+    conn = get_db(db_path)
     conn.execute("PRAGMA foreign_keys=ON")
-    conn.row_factory = sqlite3.Row
     return conn
-
-
-def emit(data):
-    json.dump(data, sys.stdout, indent=2, default=str)
-    sys.stdout.write("\n")
-    sys.exit(0)
-
-
-def fail(msg):
-    print(msg, file=sys.stderr)
-    sys.exit(1)
-
-
-def rows_to_list(rows):
-    return [dict(r) for r in rows]
 
 
 def load_config():

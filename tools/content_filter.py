@@ -20,6 +20,11 @@ import os
 import re
 import sys
 
+from _common import (
+    CONFIG_PATH,
+    emit,
+)
+
 try:
     import yaml
 except ImportError:
@@ -31,25 +36,12 @@ except ImportError:
 
 
 # ---------------------------------------------------------------------------
-# Paths
-# ---------------------------------------------------------------------------
-
-REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-CONFIG_PATH = os.path.join(REPO_ROOT, "config.yaml")
-
-
-# ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
 
 
-def emit(data):
-    json.dump(data, sys.stdout, indent=2, default=str)
-    sys.stdout.write("\n")
-    sys.exit(0)
-
-
 def load_config():
+    """Load config — returns empty dict on missing/invalid file (non-fatal)."""
     try:
         with open(CONFIG_PATH, "r") as f:
             return yaml.safe_load(f)

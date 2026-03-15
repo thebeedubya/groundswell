@@ -20,46 +20,18 @@ import sqlite3
 import sys
 from datetime import datetime, timezone
 
-try:
-    import yaml
-except ImportError:
-    print(
-        json.dumps({"error": "PyYAML is required: pip install pyyaml"}),
-        file=sys.stderr,
-    )
-    sys.exit(1)
-
-# ---------------------------------------------------------------------------
-# Paths — resolve relative to the repo root (two levels up from this file)
-# ---------------------------------------------------------------------------
-
-REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-CONFIG_PATH = os.path.join(REPO_ROOT, "config.yaml")
-DB_PATH = os.path.join(REPO_ROOT, "data", "groundswell.db")
+from _common import (
+    CONFIG_PATH,
+    DB_PATH,
+    load_config,
+    get_db,
+    now_iso,
+)
 
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
-
-
-def load_config():
-    """Load config.yaml and return the parsed dict."""
-    try:
-        with open(CONFIG_PATH, "r") as f:
-            return yaml.safe_load(f)
-    except FileNotFoundError:
-        fatal(f"config.yaml not found at {CONFIG_PATH}")
-    except yaml.YAMLError as exc:
-        fatal(f"Invalid config.yaml: {exc}")
-
-
-def get_db():
-    """Return a sqlite3 connection. Creates data/ dir if needed."""
-    os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
-    return conn
 
 
 def utcnow_iso():

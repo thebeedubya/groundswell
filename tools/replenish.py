@@ -26,13 +26,12 @@ import subprocess
 import sys
 import uuid
 
+from _common import REPO_ROOT, DATA_DIR
+
 # ---------------------------------------------------------------------------
 # Paths
 # ---------------------------------------------------------------------------
 
-SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-PROJECT_ROOT = os.path.dirname(SCRIPT_DIR)
-DATA_DIR = os.path.join(PROJECT_ROOT, "data")
 BACKLOG_PATH = os.path.join(DATA_DIR, "backlog.json")
 REPLENISH_LOG_PATH = os.path.join(DATA_DIR, "replenish_log.json")
 BLOG_DIR = os.path.expanduser("~/Projects/dbradwood.com/content/writing")
