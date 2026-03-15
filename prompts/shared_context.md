@@ -139,6 +139,12 @@ All tools are invoked as `python3 tools/<tool>.py <command> [args]`.
 | `tools/replenish.py` | `add-to-backlog --platform x --type native --text "..."` | Add content to posting backlog |
 | `tools/replenish.py` | `add-thread --platform x --texts '[...]'` | Add thread to backlog |
 | `tools/replenish.py` | `backlog-status` | Backlog health and days remaining |
+| `tools/seo.py` | `audit --url URL` | Full page SEO audit (score + issues) |
+| `tools/seo.py` | `sitemap-check` | Verify sitemap.xml accessibility |
+| `tools/seo.py` | `internal-links --slug POST` | Suggest internal links for a blog post |
+| `tools/seo.py` | `status` | Overall SEO health summary |
+| `tools/broadcast.py` | `send --text "..."` | Post to Slack + Google Chat |
+| `tools/broadcast.py` | `digest --hours 24` | Daily activity summary to internal channels |
 | `tools/video.py` | `capture --command "..." --duration SECS` | Record terminal session |
 | `tools/video.py` | `render --recording PATH --audio PATH` | Combine recording + voiceover |
 | `tools/video.py` | `create-clip --log "..." --script "..."` | End-to-end video creation |

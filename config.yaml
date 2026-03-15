@@ -108,6 +108,20 @@ schedule:
       timeout_seconds: 300
       enabled: true
 
+    seo_daily:
+      agent: seo
+      daily_at: ["06:30"]
+      jitter_minutes: 5
+      timeout_seconds: 300
+      enabled: true
+
+    seo_weekly:
+      agent: seo
+      weekly_at: "sunday 07:00"
+      jitter_minutes: 0
+      timeout_seconds: 600
+      enabled: true
+
 policy:
   brand_safety:
     initial_color: "GREEN"
