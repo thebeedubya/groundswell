@@ -279,53 +279,43 @@ def cmd_submit(args):
     )
     conn.commit()
 
-    # Check if auto mode is eligible
-    stats = get_approval_stats(conn)
-    if args.auto and stats["approved"] >= 30:
-        # Auto-approve and publish
-        conn.execute(
-            "UPDATE diary_entries SET status='approved', reviewed_at=? WHERE id=?",
-            (ts, entry_id),
-        )
-        conn.commit()
-        _publish_entry(conn, entry_id)
-        emit({
-            "ok": True,
-            "action": "auto_published",
-            "id": entry_id,
-            "title": title,
-            "message": f"Auto-published (30+ approved entries, auto mode enabled)",
-        })
-        return
+    # Publish immediately — Brad reviews after the fact
+    # If he rejects, that's the learning signal
+    conn.execute(
+        "UPDATE diary_entries SET status='approved', reviewed_at=? WHERE id=?",
+        (ts, entry_id),
+    )
+    conn.commit()
+    _publish_entry(conn, entry_id)
 
-    # Send to Telegram for approval
+    # Notify Brad via Telegram — not for approval, just awareness
+    # He rejects if something's wrong, and THAT is what trains the model
     try:
         preview = body[:300] + "..." if len(body) > 300 else body
-        approval_text = (
-            f"📓 DIARY ENTRY — {today}\n\n"
+        notify_text = (
+            f"📓 DIARY PUBLISHED — {today}\n\n"
             f"Title: {title}\n"
             f"Mood: {mood}\n\n"
             f"{preview}\n\n"
-            f"ID: {entry_id}"
+            f"To reject: python3 tools/diary.py reject --id {entry_id} --reason \"...\""
         )
         subprocess.run(
             ["python3", os.path.join(REPO_ROOT, "tools", "telegram.py"),
-             "approval", "--id", entry_id, "--text", approval_text,
-             "--options", '["approve","reject","edit"]'],
+             "send", "--text", notify_text],
             capture_output=True, timeout=30,
         )
     except Exception:
-        pass  # Telegram failure shouldn't block the entry
+        pass
 
     conn.close()
 
     emit({
         "ok": True,
-        "action": "submitted",
+        "action": "published",
         "id": entry_id,
         "title": title,
-        "status": "pending",
-        "message": "Entry submitted for Brad's approval via Telegram.",
+        "status": "published",
+        "message": "Published immediately. Brad reviews after — rejections are the learning gate.",
     })
 
 
