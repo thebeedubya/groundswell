@@ -279,29 +279,22 @@ def cmd_submit(args):
     )
     conn.commit()
 
-    # Publish immediately — Brad reviews after the fact
-    # If he rejects, that's the learning signal
-    conn.execute(
-        "UPDATE diary_entries SET status='approved', reviewed_at=? WHERE id=?",
-        (ts, entry_id),
-    )
-    conn.commit()
-    _publish_entry(conn, entry_id)
-
-    # Notify Brad via Telegram — not for approval, just awareness
-    # He rejects if something's wrong, and THAT is what trains the model
+    # Send to Telegram for approval BEFORE publishing
+    # Nothing goes live without Brad saying yes
+    # Rejections are the learning signal — but approval is the gate
     try:
-        preview = body[:300] + "..." if len(body) > 300 else body
-        notify_text = (
-            f"📓 DIARY PUBLISHED — {today}\n\n"
-            f"Title: {title}\n"
+        preview = body[:500] + "..." if len(body) > 500 else body
+        approval_text = (
+            f"📓 DIARY — {today}\n\n"
+            f"**{title}**\n"
             f"Mood: {mood}\n\n"
             f"{preview}\n\n"
-            f"To reject: python3 tools/diary.py reject --id {entry_id} --reason \"...\""
+            f"ID: {entry_id}"
         )
         subprocess.run(
             ["python3", os.path.join(REPO_ROOT, "tools", "telegram.py"),
-             "send", "--text", notify_text],
+             "approval", "--id", entry_id, "--text", approval_text,
+             "--options", '["approve","reject"]'],
             capture_output=True, timeout=30,
         )
     except Exception:
@@ -311,11 +304,11 @@ def cmd_submit(args):
 
     emit({
         "ok": True,
-        "action": "published",
+        "action": "pending_approval",
         "id": entry_id,
         "title": title,
-        "status": "published",
-        "message": "Published immediately. Brad reviews after — rejections are the learning gate.",
+        "status": "pending",
+        "message": "Sent to Telegram for approval. Nothing publishes until Brad says yes.",
     })
 
 
