@@ -1,0 +1,51 @@
+{
+  "version": 1,
+  "created_at": "2026-03-15T03:00:00Z",
+  "purpose": "Immutable anchors that the system checks against weekly to detect drift. These NEVER update automatically — only Brad can change them.",
+
+  "identity": {
+    "primary": "AI Operator",
+    "proof_vertical": "cannabis",
+    "differentiator": "non-engineer, 1800 commits, regulated industry proof",
+    "north_star": "advisory pipeline inbound",
+    "milestone": "MJBizCon Jan 2027 speaker slot"
+  },
+
+  "voice_anchors": {
+    "must_sound_like": ["direct", "specific", "receipts over claims", "operator mindset", "conversational"],
+    "must_never_sound_like": ["corporate press release", "linkedin influencer", "hustle culture", "sycophantic", "generic AI commentary"],
+    "cannabis_rules": {
+      "never_say": ["replace your staff", "cut headcount", "fire your compliance team"],
+      "always_say": ["free your team", "scale without adding overhead", "let your people do what they're best at"]
+    }
+  },
+
+  "content_mix_targets": {
+    "value_teaching": {"target": 0.50, "min": 0.35, "max": 0.65},
+    "social_proof": {"target": 0.30, "min": 0.20, "max": 0.40},
+    "engagement_bait": {"target": 0.20, "min": 0.10, "max": 0.30}
+  },
+
+  "identity_allocation_targets": {
+    "ai_operator": {"target": 0.40, "min": 0.30, "max": 0.55},
+    "cannabis_ops": {"target": 0.30, "min": 0.20, "max": 0.40},
+    "build_in_public": {"target": 0.20, "min": 0.10, "max": 0.30},
+    "personal_brand": {"target": 0.10, "min": 0.05, "max": 0.20}
+  },
+
+  "behavioral_guardrails": {
+    "max_posts_per_day": {"x": 8, "linkedin": 2},
+    "min_voice_score": 0.7,
+    "max_engagement_bait_consecutive": 2,
+    "max_same_topic_consecutive": 3,
+    "controversy_ceiling": "never optimize for outrage engagement",
+    "tier1_always_requires_human": true
+  },
+
+  "drift_detection": {
+    "check_frequency": "weekly",
+    "alert_threshold": "any metric outside min/max bounds for 2+ consecutive weeks",
+    "action_on_drift": "BLOCK strategy weight updates until Brad reviews and approves",
+    "escalation": "telegram alert with specific drift metrics"
+  }
+}

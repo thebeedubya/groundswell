@@ -226,6 +226,10 @@ python3 tools/learning.py get-weights
 # Run full learning cascade
 python3 tools/learning.py compute-weights
 
+# MANDATORY: Run drift check AFTER compute-weights, BEFORE propagating strategy
+# If drift is detected, DO NOT update strategy_state. Alert Brad via Telegram.
+python3 tools/learning.py drift-check
+
 # Update a specific weight
 python3 tools/db.py update strategy_state --where "key = 'content_mix_value_teaching'" --data '{"value": "0.52", "version": 13, "updated_at": "ISO_TIMESTAMP"}'
 ```

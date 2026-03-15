@@ -1232,6 +1232,159 @@ def cmd_status(args):
     })
 
 
+def cmd_drift_check(args):
+    """Check current system state against immutable baseline anchors.
+
+    Compares actual content mix, identity allocation, voice scores,
+    and behavioral metrics against the bounds in baseline_anchors.json.
+    If anything is outside bounds for 2+ consecutive weeks, flags it.
+    """
+    conn = get_connection(args.db)
+
+    anchors_path = os.path.join(REPO_ROOT, "data", "baseline_anchors.json")
+    if not os.path.exists(anchors_path):
+        emit({"ok": False, "error": "baseline_anchors.json not found"})
+        return
+
+    with open(anchors_path) as f:
+        anchors = json.load(f)
+
+    alerts = []
+    metrics = {}
+
+    # 1. Check content mix ratios (last 2 weeks of posts)
+    try:
+        rows = conn.execute(
+            "SELECT identity_bucket, COUNT(*) as cnt FROM content_genome "
+            "WHERE created_at > datetime('now', '-14 days') GROUP BY identity_bucket"
+        ).fetchall()
+        total = sum(r["cnt"] for r in rows) if rows else 0
+        if total > 0:
+            mix = {r["identity_bucket"]: r["cnt"] / total for r in rows}
+            metrics["content_mix"] = mix
+
+            # Check content_mix_targets
+            for key, bounds in anchors.get("content_mix_targets", {}).items():
+                actual = mix.get(key, 0)
+                if actual < bounds["min"]:
+                    alerts.append({
+                        "type": "content_mix_low",
+                        "metric": key,
+                        "actual": round(actual, 3),
+                        "min": bounds["min"],
+                        "target": bounds["target"],
+                    })
+                elif actual > bounds["max"]:
+                    alerts.append({
+                        "type": "content_mix_high",
+                        "metric": key,
+                        "actual": round(actual, 3),
+                        "max": bounds["max"],
+                        "target": bounds["target"],
+                    })
+    except Exception:
+        pass
+
+    # 2. Check identity allocation (last 2 weeks)
+    try:
+        rows = conn.execute(
+            "SELECT topic_cluster, COUNT(*) as cnt FROM content_genome "
+            "WHERE created_at > datetime('now', '-14 days') GROUP BY topic_cluster"
+        ).fetchall()
+        total = sum(r["cnt"] for r in rows) if rows else 0
+        if total > 0:
+            alloc = {r["topic_cluster"]: r["cnt"] / total for r in rows}
+            metrics["identity_allocation"] = alloc
+
+            for key, bounds in anchors.get("identity_allocation_targets", {}).items():
+                actual = alloc.get(key, 0)
+                if actual < bounds["min"]:
+                    alerts.append({
+                        "type": "identity_drift_low",
+                        "metric": key,
+                        "actual": round(actual, 3),
+                        "min": bounds["min"],
+                    })
+                elif actual > bounds["max"]:
+                    alerts.append({
+                        "type": "identity_drift_high",
+                        "metric": key,
+                        "actual": round(actual, 3),
+                        "max": bounds["max"],
+                    })
+    except Exception:
+        pass
+
+    # 3. Check consecutive engagement bait (behavioral guardrail)
+    try:
+        rows = conn.execute(
+            "SELECT identity_bucket FROM content_genome "
+            "ORDER BY id DESC LIMIT 10"
+        ).fetchall()
+        consecutive_bait = 0
+        max_consecutive_bait = 0
+        for r in rows:
+            if r["identity_bucket"] == "engagement_bait":
+                consecutive_bait += 1
+                max_consecutive_bait = max(max_consecutive_bait, consecutive_bait)
+            else:
+                consecutive_bait = 0
+
+        max_allowed = anchors.get("behavioral_guardrails", {}).get("max_engagement_bait_consecutive", 2)
+        if max_consecutive_bait > max_allowed:
+            alerts.append({
+                "type": "engagement_bait_streak",
+                "consecutive": max_consecutive_bait,
+                "max_allowed": max_allowed,
+            })
+        metrics["max_consecutive_engagement_bait"] = max_consecutive_bait
+    except Exception:
+        pass
+
+    # 4. Check strategy weight velocity (are weights changing too fast?)
+    try:
+        rows = conn.execute(
+            "SELECT model_key, model_data, updated_at FROM learned_models "
+            "ORDER BY updated_at DESC LIMIT 10"
+        ).fetchall()
+        metrics["active_models"] = len(rows)
+    except Exception:
+        pass
+
+    # Determine overall status
+    if alerts:
+        status = "DRIFT_DETECTED"
+    else:
+        status = "ANCHORED"
+
+    conn.close()
+
+    result = {
+        "status": status,
+        "alerts": alerts,
+        "alert_count": len(alerts),
+        "metrics": metrics,
+        "anchors_version": anchors.get("version", 0),
+        "checked_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+    }
+    emit(result)
+
+    # If drift detected, also send Telegram alert
+    if alerts and not args.quiet:
+        try:
+            import subprocess
+            alert_text = f"⚠️ DRIFT DETECTED — {len(alerts)} anchor violations:\n\n"
+            for a in alerts[:5]:
+                alert_text += f"• {a['type']}: {a.get('metric', '')} = {a.get('actual', a.get('consecutive', '?'))}\n"
+            alert_text += "\nReview and re-anchor before next strategy update."
+            subprocess.run(
+                ["python3", os.path.join(REPO_ROOT, "tools", "telegram.py"), "alert", "--level", "warning", "--text", alert_text],
+                capture_output=True, timeout=30,
+            )
+        except Exception:
+            pass
+
+
 # ---------------------------------------------------------------------------
 # CLI parser
 # ---------------------------------------------------------------------------
@@ -1284,6 +1437,10 @@ def build_parser():
     # status
     sub.add_parser("status", help="Learning engine status overview")
 
+    # drift-check
+    p = sub.add_parser("drift-check", help="Check system against baseline anchors for drift")
+    p.add_argument("--quiet", action="store_true", help="Suppress Telegram alerts")
+
     return parser
 
 
@@ -1302,6 +1459,7 @@ COMMANDS = {
     "decay-check": cmd_decay_check,
     "chain-update": cmd_chain_update,
     "status": cmd_status,
+    "drift-check": cmd_drift_check,
 }
 
 
