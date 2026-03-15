@@ -73,7 +73,9 @@ Before posting any item, ALL of these must pass:
    ```
    python3 tools/policy.py check --action post --text "FULL TEXT" --platform PLATFORM
    ```
-   Must return `APPROVED` or `NEEDS_APPROVAL` (queue to Telegram). `BLOCKED` or `ABSTAIN` = do not post.
+   Must return `APPROVED` or `NEEDS_APPROVAL` (queue to Telegram). `BLOCKED` = do not post.
+
+   **If the reason contains `posting_window_closed`:** This is not a rejection — the content is fine, the timing is wrong. Do NOT dead-letter it. Leave it in the backlog. Log "window_closed" and exit. The schedule will invoke you again at the next posting window.
 
 2. **Brand safety is GREEN or YELLOW.** If YELLOW, only post items that are already Brad-approved. If RED or BLACK, post nothing.
 

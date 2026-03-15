@@ -43,15 +43,17 @@ schedule:
   tasks:
     publisher_x:
       agent: publisher
-      interval_minutes: 60
+      # Post at start of each window, not every 60 min
+      daily_at: ["07:00", "08:00", "11:30", "12:30", "17:00"]
       jitter_minutes: 15
       timeout_seconds: 120
       enabled: true
 
     publisher_linkedin:
       agent: publisher
-      daily_at: ["08:00", "12:30"]
-      jitter_minutes: 20
+      # Tues-Thurs mornings are peak. 2 slots max.
+      daily_at: ["08:00", "12:00"]
+      jitter_minutes: 15
       timeout_seconds: 120
       enabled: true
 
