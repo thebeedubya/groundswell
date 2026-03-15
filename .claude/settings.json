@@ -1,0 +1,21 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python3 tools/*)",
+      "Bash(cat data/*)",
+      "Bash(ls *)",
+      "Bash(date *)",
+      "Bash(sleep *)",
+      "Read",
+      "Write(data/*)",
+      "Write(prompts/*)",
+      "Edit(data/*)",
+      "Glob",
+      "Grep"
+    ],
+    "deny": [
+      "Bash(rm -rf *)",
+      "Bash(git push *)"
+    ]
+  }
+}

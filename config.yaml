@@ -1,0 +1,198 @@
+# Groundswell Configuration
+# All tunable parameters in one place. Agents read this via tools/db.py.
+
+brand:
+  name: "Brad Wood"
+  handle_x: "@thebeedubaya"
+  handle_linkedin: "brad-wood"
+  identity: "AI Operator"
+  tagline: "Non-engineer running an 8-figure business with 7 people. The rest of the workforce is AI agents."
+
+platforms:
+  x:
+    enabled: true
+    max_posts_per_day: 8
+    max_replies_per_hour: 10
+    max_replies_per_day: 40
+    link_in_reply: true      # Never put links in main tweet
+    image_boost: true        # Attach screenshots when available
+  linkedin:
+    enabled: true
+    max_posts_per_day: 2     # More than 2 cannibalizes reach
+    min_word_count: 200      # Dwell time is king
+    target_word_count: 800   # Sweet spot for cannabis content
+    link_in_comment: true    # Never put links in post body
+  threads:
+    enabled: false           # Enable when access token ready
+    max_posts_per_day: 4
+    no_hashtags: true
+
+schedule:
+  # All times in CT (America/Chicago)
+  timezone: "America/Chicago"
+
+  tasks:
+    publisher_x:
+      agent: publisher
+      interval_minutes: 60
+      jitter_minutes: 15
+      timeout_seconds: 120
+      enabled: true
+
+    publisher_linkedin:
+      agent: publisher
+      daily_at: ["08:00", "12:30"]
+      jitter_minutes: 20
+      timeout_seconds: 120
+      enabled: true
+
+    publisher_threads:
+      agent: publisher
+      interval_minutes: 180
+      jitter_minutes: 30
+      timeout_seconds: 120
+      enabled: false
+
+    outbound_engager:
+      agent: outbound_engager
+      interval_minutes: 45
+      jitter_minutes: 10
+      timeout_seconds: 180
+      enabled: true
+
+    inbound_engager:
+      agent: inbound_engager
+      interval_minutes: 30
+      jitter_minutes: 5
+      timeout_seconds: 120
+      enabled: true
+
+    scout:
+      agent: scout
+      interval_minutes: 120
+      jitter_minutes: 30
+      timeout_seconds: 180
+      enabled: true
+
+    analyst_snapshot:
+      agent: analyst
+      daily_at: ["06:00"]
+      jitter_minutes: 5
+      timeout_seconds: 300
+      enabled: true
+
+    analyst_weekly:
+      agent: analyst
+      weekly_at: "sunday 06:00"
+      jitter_minutes: 0
+      timeout_seconds: 600
+      enabled: true
+
+    creator:
+      agent: creator
+      interval_minutes: 240
+      jitter_minutes: 30
+      timeout_seconds: 300
+      enabled: true
+
+policy:
+  brand_safety:
+    initial_color: "GREEN"
+    # GREEN = normal ops, YELLOW = reduced volume, RED = approvals only, BLACK = full halt
+    colors: ["GREEN", "YELLOW", "RED", "BLACK"]
+
+  content_filter:
+    blocked_topics:
+      - partisan_politics
+      - religion
+      - personal_attacks
+      - competitor_bashing
+      - financial_advice
+      - medical_claims
+    cannabis_rules:
+      never_say: ["replace your staff", "cut headcount", "fire your compliance team"]
+      always_say_instead: ["free your team", "scale without adding overhead", "let your people do what they're best at"]
+    tier1_requires_approval: true
+    tier2_requires_approval: true
+
+  rate_limits:
+    max_actions_per_hour: 30
+    cooldown_after_error_minutes: 15
+    backoff_multiplier: 2.0
+    max_backoff_minutes: 60
+
+trust:
+  # Trust Phase A: all outputs require Brad approval via Telegram
+  # Trust Phase B: Tier 3+ autonomous, Tier 1-2 require approval
+  # Trust Phase C: full autonomy with policy gates only
+  current_phase: "B"
+
+growth:
+  # 50/30/20 rule for content mix
+  content_mix:
+    value_teaching: 0.50      # Frameworks, how-tos, insights
+    social_proof: 0.30        # Receipts, milestones, behind-the-scenes
+    engagement_bait: 0.20     # Questions, hot takes, polls
+
+  tiers:
+    tier1:
+      description: "Kingmakers - 100K+ followers, industry leaders"
+      max_daily_interactions: 3
+      requires_approval: true
+    tier2:
+      description: "Amplifiers - 10K-100K followers, active voices"
+      max_daily_interactions: 10
+      requires_approval: true
+    tier3:
+      description: "Community - 1K-10K followers, engaged practitioners"
+      max_daily_interactions: 20
+      requires_approval: false
+
+learning:
+  # Conservative early learning (first 4 weeks)
+  ema_alpha_early: 0.15       # First 4 weeks
+  ema_alpha_steady: 0.30      # After 4 weeks
+  early_period_weeks: 4
+  exploration_ratio_start: 0.40
+  exploration_ratio_floor: 0.20
+  exploration_decay_posts: 1000  # Posts to reach floor
+  min_samples_content_dna: 30
+  min_samples_conversion: 10
+  min_samples_audience: 5
+  min_chains_for_model: 50
+  max_weight_change_daily: 0.05   # 5%
+  max_weight_change_weekly: 0.20  # 20%
+  outlier_threshold: 10.0         # 10x baseline
+  outlier_min_baseline_samples: 50
+  decay_min_windows: 4            # Weeks before decay detection activates
+
+  sunday_cascade:
+    # Times in CT
+    follower_snapshot: "06:00"
+    audience_graph: "06:15"
+    content_dna: "06:30"
+    conversion_refit: "06:45"
+    voice_compilation: "07:00"
+    chain_model: "07:15"
+    decay_detection: "07:30"
+    model_compilation: "07:45"
+
+voice:
+  # Voice scoring thresholds
+  min_score_to_post: 0.7
+  target_score: 0.85
+  constitution_path: "data/voice_constitution.md"
+  corpus_path: "data/voice_corpus/"
+
+telegram:
+  # Set TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID in ~/.zsh_env
+  bot_token: ""
+  chat_id: ""
+
+dashboard:
+  port: 8500
+  host: "0.0.0.0"
+
+database:
+  path: "data/groundswell.db"
+  wal_mode: true

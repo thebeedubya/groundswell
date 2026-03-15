@@ -1,0 +1,9 @@
+data/groundswell.db
+data/groundswell.db-wal
+data/groundswell.db-shm
+data/logs/
+data/videos/
+data/growth_audits/
+data/replenish_log.json
+__pycache__/
+*.pyc
