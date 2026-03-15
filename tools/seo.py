@@ -18,10 +18,14 @@ Usage:
 """
 
 import argparse
+import base64
 import json
 import os
 import re
+import subprocess
 import sys
+import time
+from datetime import datetime, timedelta, timezone
 from html.parser import HTMLParser
 from urllib.error import HTTPError, URLError
 from urllib.parse import urljoin, urlparse
@@ -540,8 +544,121 @@ def cmd_status(args):
 
 
 # ---------------------------------------------------------------------------
-# Subcommands — stubs (need API credentials)
+# Google Search Console API helpers
 # ---------------------------------------------------------------------------
+
+GSC_SITE = "sc-domain:dbradwood.com"
+GSC_SITE_ENCODED = "sc-domain%3Adbradwood.com"
+GSC_ANALYTICS_URL = (
+    f"https://searchconsole.googleapis.com/webmasters/v3/sites/"
+    f"{GSC_SITE_ENCODED}/searchAnalytics/query"
+)
+
+
+def _get_search_console_token():
+    """Get OAuth2 access token using service account JWT. Returns None if unconfigured."""
+    sa_path = os.environ.get(
+        "GOOGLE_SEARCH_CONSOLE_SA",
+        os.path.expanduser("~/.config/groundswell-seo-sa.json"),
+    )
+    if not os.path.exists(sa_path):
+        return None
+
+    with open(sa_path) as f:
+        sa = json.load(f)
+
+    header = base64.urlsafe_b64encode(
+        json.dumps({"alg": "RS256", "typ": "JWT"}).encode()
+    ).rstrip(b"=")
+    now = int(time.time())
+    claims = {
+        "iss": sa["client_email"],
+        "scope": "https://www.googleapis.com/auth/webmasters.readonly",
+        "aud": "https://oauth2.googleapis.com/token",
+        "iat": now,
+        "exp": now + 3600,
+    }
+    payload = base64.urlsafe_b64encode(json.dumps(claims).encode()).rstrip(b"=")
+    signing_input = header + b"." + payload
+
+    key_path = "/tmp/_gsc_key.pem"
+    with open(key_path, "w") as f:
+        f.write(sa["private_key"])
+
+    proc = subprocess.run(
+        ["openssl", "dgst", "-sha256", "-sign", key_path],
+        input=signing_input,
+        capture_output=True,
+    )
+    os.unlink(key_path)
+
+    signature = base64.urlsafe_b64encode(proc.stdout).rstrip(b"=")
+    jwt_token = (header + b"." + payload + b"." + signature).decode()
+
+    import urllib.parse as _up
+    import urllib.request as _ur
+
+    token_data = _up.urlencode({
+        "grant_type": "urn:ietf:params:oauth:grant-type:jwt-bearer",
+        "assertion": jwt_token,
+    }).encode()
+    req = _ur.Request(
+        "https://oauth2.googleapis.com/token", data=token_data, method="POST"
+    )
+    with _ur.urlopen(req) as resp:
+        return json.loads(resp.read())["access_token"]
+
+
+def _gsc_query(token, body):
+    """POST a Search Analytics query. Returns parsed JSON or raises."""
+    data = json.dumps(body).encode("utf-8")
+    req = Request(
+        GSC_ANALYTICS_URL,
+        data=data,
+        headers={
+            "Authorization": f"Bearer {token}",
+            "Content-Type": "application/json",
+            "User-Agent": USER_AGENT,
+        },
+        method="POST",
+    )
+    try:
+        with urlopen(req, timeout=30) as resp:
+            return json.loads(resp.read())
+    except HTTPError as exc:
+        body_text = exc.read().decode("utf-8", errors="replace") if exc.fp else ""
+        raise RuntimeError(
+            f"Search Console API HTTP {exc.code}: {body_text}"
+        ) from exc
+    except URLError as exc:
+        raise RuntimeError(f"Network error calling Search Console API: {exc.reason}") from exc
+
+
+def _date_str(dt):
+    """Format a datetime as YYYY-MM-DD."""
+    return dt.strftime("%Y-%m-%d")
+
+
+def _write_intel(headline, detail):
+    """Write an intel entry to the newsroom via db.py."""
+    try:
+        subprocess.run(
+            [
+                "python3",
+                os.path.join(REPO_ROOT, "tools", "db.py"),
+                "write-intel",
+                "--category", "seo",
+                "--headline", headline,
+                "--detail", detail,
+                "--source", "seo",
+                "--relevance", "0.7",
+            ],
+            capture_output=True,
+            timeout=10,
+        )
+    except Exception:
+        pass  # best-effort; don't break the main command
+
 
 def _stub(command, needs):
     """Return a standard 'not configured' stub response."""
@@ -558,46 +675,288 @@ def _stub(command, needs):
     })
 
 
-def cmd_index_status(args):
-    """Check Google indexing status. Requires Search Console API."""
-    _stub("index-status", "Google Search Console API")
+# ---------------------------------------------------------------------------
+# Subcommands — Search Console (live API)
+# ---------------------------------------------------------------------------
+
+def cmd_search_console(args):
+    """Get Search Console performance data for the last N days."""
+    days = args.days
+    token = _get_search_console_token()
+    if token is None:
+        _stub("search-console", "Google Search Console service account JSON")
+        return
+
+    end = datetime.now(timezone.utc) - timedelta(days=3)  # GSC data lags ~3 days
+    start = end - timedelta(days=days)
+
+    # Query 1: top queries by impressions
+    try:
+        queries_resp = _gsc_query(token, {
+            "startDate": _date_str(start),
+            "endDate": _date_str(end),
+            "dimensions": ["query"],
+            "rowLimit": 25,
+        })
+    except RuntimeError as exc:
+        fail(f"Search Console API error (queries): {exc}")
+
+    # Query 2: top pages by impressions
+    try:
+        pages_resp = _gsc_query(token, {
+            "startDate": _date_str(start),
+            "endDate": _date_str(end),
+            "dimensions": ["page"],
+            "rowLimit": 25,
+        })
+    except RuntimeError as exc:
+        fail(f"Search Console API error (pages): {exc}")
+
+    queries_rows = queries_resp.get("rows", [])
+    pages_rows = pages_resp.get("rows", [])
+
+    if not queries_rows and not pages_rows:
+        result = {
+            "command": "search-console",
+            "timestamp": now_iso(),
+            "status": "no_data",
+            "days": days,
+            "date_range": {"start": _date_str(start), "end": _date_str(end)},
+            "message": "No data yet. If this is a new property, check back in 2-3 days.",
+        }
+        emit(result)
+        return
+
+    queries = [
+        {
+            "query": row["keys"][0],
+            "clicks": row.get("clicks", 0),
+            "impressions": row.get("impressions", 0),
+            "ctr": round(row.get("ctr", 0), 4),
+            "position": round(row.get("position", 0), 1),
+        }
+        for row in queries_rows
+    ]
+    queries.sort(key=lambda r: r["impressions"], reverse=True)
+
+    pages = [
+        {
+            "page": row["keys"][0],
+            "clicks": row.get("clicks", 0),
+            "impressions": row.get("impressions", 0),
+            "ctr": round(row.get("ctr", 0), 4),
+            "position": round(row.get("position", 0), 1),
+        }
+        for row in pages_rows
+    ]
+    pages.sort(key=lambda r: r["impressions"], reverse=True)
+
+    result = {
+        "command": "search-console",
+        "timestamp": now_iso(),
+        "status": "ok",
+        "days": days,
+        "date_range": {"start": _date_str(start), "end": _date_str(end)},
+        "top_queries": queries,
+        "top_pages": pages,
+        "total_queries": len(queries),
+        "total_pages": len(pages),
+    }
+
+    # Write intel
+    top_q = queries[0]["query"] if queries else "N/A"
+    total_clicks = sum(q["clicks"] for q in queries)
+    total_impressions = sum(q["impressions"] for q in queries)
+    _write_intel(
+        f"Search Console: {total_clicks} clicks, {total_impressions} impressions ({days}d)",
+        f"Top query: '{top_q}'. {len(queries)} queries, {len(pages)} pages with traffic.",
+    )
+
+    emit(result)
 
 
 def cmd_rankings(args):
-    """Check keyword rankings. Requires SERP API or Search Console."""
+    """Check keyword rankings via Search Console API."""
     keywords = [k.strip() for k in args.keywords.split(",")]
-    emit({
+    token = _get_search_console_token()
+    if token is None:
+        _stub("rankings", "Google Search Console service account JSON")
+        return
+
+    end = datetime.now(timezone.utc) - timedelta(days=3)
+    start = end - timedelta(days=28)
+
+    keyword_results = []
+    for kw in keywords:
+        try:
+            resp = _gsc_query(token, {
+                "startDate": _date_str(start),
+                "endDate": _date_str(end),
+                "dimensions": ["query"],
+                "dimensionFilterGroups": [{
+                    "filters": [{
+                        "dimension": "query",
+                        "operator": "contains",
+                        "expression": kw,
+                    }]
+                }],
+            })
+        except RuntimeError as exc:
+            keyword_results.append({
+                "keyword": kw,
+                "status": "error",
+                "error": str(exc),
+            })
+            continue
+
+        rows = resp.get("rows", [])
+        if not rows:
+            keyword_results.append({
+                "keyword": kw,
+                "status": "no_data",
+                "clicks": 0,
+                "impressions": 0,
+                "position": None,
+            })
+        else:
+            # Aggregate all matching query rows
+            total_clicks = sum(r.get("clicks", 0) for r in rows)
+            total_impressions = sum(r.get("impressions", 0) for r in rows)
+            # Weighted average position
+            if total_impressions > 0:
+                avg_position = sum(
+                    r.get("position", 0) * r.get("impressions", 0) for r in rows
+                ) / total_impressions
+            else:
+                avg_position = rows[0].get("position", 0)
+            avg_ctr = total_clicks / total_impressions if total_impressions > 0 else 0
+
+            matching_queries = [
+                {
+                    "query": r["keys"][0],
+                    "clicks": r.get("clicks", 0),
+                    "impressions": r.get("impressions", 0),
+                    "position": round(r.get("position", 0), 1),
+                }
+                for r in sorted(rows, key=lambda x: x.get("impressions", 0), reverse=True)[:10]
+            ]
+
+            keyword_results.append({
+                "keyword": kw,
+                "status": "ok",
+                "clicks": total_clicks,
+                "impressions": total_impressions,
+                "ctr": round(avg_ctr, 4),
+                "position": round(avg_position, 1),
+                "matching_queries": matching_queries,
+            })
+
+    result = {
         "command": "rankings",
         "timestamp": now_iso(),
-        "status": "not_configured",
-        "keywords_requested": keywords,
-        "message": "Keyword ranking tracking requires a SERP API (e.g., SerpAPI, DataForSEO) "
-                   "or Google Search Console API. Set up credentials to enable.",
-        "setup_steps": [
-            "Choose a SERP API provider or set up Search Console API",
-            "Add API key to config.yaml under seo.rankings section",
-            "Re-run this command",
-        ],
-    })
+        "status": "ok",
+        "date_range": {"start": _date_str(start), "end": _date_str(end)},
+        "keywords": keyword_results,
+    }
+
+    # Write intel
+    tracked = [k for k in keyword_results if k.get("status") == "ok"]
+    if tracked:
+        best = min(tracked, key=lambda k: k.get("position") or 999)
+        _write_intel(
+            f"Rankings: '{best['keyword']}' avg position {best.get('position', 'N/A')}",
+            f"Tracked {len(keywords)} keywords. "
+            + ", ".join(
+                f"'{k['keyword']}': pos {k.get('position', 'N/A')}" for k in keyword_results[:5]
+            ),
+        )
+
+    emit(result)
 
 
-def cmd_search_console(args):
-    """Get Search Console performance data. Requires API credentials."""
-    days = args.days
-    emit({
-        "command": "search-console",
+def cmd_index_status(args):
+    """Check Google indexing status via Search Console page data."""
+    token = _get_search_console_token()
+    if token is None:
+        _stub("index-status", "Google Search Console service account JSON")
+        return
+
+    end = datetime.now(timezone.utc) - timedelta(days=3)
+    start = end - timedelta(days=28)
+
+    # Get pages with any impressions (= indexed and appearing in search)
+    try:
+        pages_resp = _gsc_query(token, {
+            "startDate": _date_str(start),
+            "endDate": _date_str(end),
+            "dimensions": ["page"],
+            "rowLimit": 100,
+        })
+    except RuntimeError as exc:
+        fail(f"Search Console API error: {exc}")
+
+    indexed_pages = [row["keys"][0] for row in pages_resp.get("rows", [])]
+
+    if not indexed_pages:
+        result = {
+            "command": "index-status",
+            "timestamp": now_iso(),
+            "status": "no_data",
+            "message": "No pages found with impressions. If this is a new property, check back in 2-3 days.",
+        }
+        emit(result)
+        return
+
+    # Try to get sitemap URLs for comparison
+    sitemap_urls = []
+    try:
+        st, body = fetch(SITEMAP_URL, timeout=15)
+        if st == 200:
+            root = ElementTree.fromstring(body)
+            ns = ""
+            if root.tag.startswith("{"):
+                ns = root.tag.split("}")[0] + "}"
+            for url_elem in root.findall(f".//{ns}url"):
+                loc = url_elem.find(f"{ns}loc")
+                if loc is not None and loc.text:
+                    sitemap_urls.append(loc.text.strip())
+    except Exception:
+        pass  # sitemap comparison is best-effort
+
+    # Compare: find sitemap URLs not appearing in Search Console data
+    indexed_set = set(indexed_pages)
+    sitemap_set = set(sitemap_urls)
+
+    # Normalize URLs for comparison (strip trailing slashes)
+    def _norm(u):
+        return u.rstrip("/")
+
+    indexed_norm = {_norm(u) for u in indexed_set}
+    not_in_search = [u for u in sitemap_urls if _norm(u) not in indexed_norm]
+    in_search_not_sitemap = [u for u in indexed_pages if _norm(u) not in {_norm(s) for s in sitemap_set}]
+
+    result = {
+        "command": "index-status",
         "timestamp": now_iso(),
-        "status": "not_configured",
-        "days_requested": days,
-        "message": "Search Console data requires Google Search Console API credentials.",
-        "setup_steps": [
-            "Create a Google Cloud project and enable Search Console API",
-            "Create a service account and download credentials JSON",
-            "Add credentials path to config.yaml under seo.search_console section",
-            "Verify dbradwood.com ownership in Search Console",
-            "Re-run this command",
-        ],
-    })
+        "status": "ok",
+        "indexed_pages_with_impressions": len(indexed_pages),
+        "sitemap_urls": len(sitemap_urls),
+        "pages_in_search": indexed_pages,
+        "sitemap_urls_not_in_search": not_in_search[:20],
+        "in_search_not_in_sitemap": in_search_not_sitemap[:10],
+        "coverage_pct": round(
+            (len(indexed_pages) / len(sitemap_urls) * 100) if sitemap_urls else 0, 1
+        ),
+    }
+
+    # Write intel
+    _write_intel(
+        f"Index status: {len(indexed_pages)} pages with impressions",
+        f"{len(not_in_search)} sitemap URLs not appearing in search. "
+        f"Coverage: {result['coverage_pct']}% of {len(sitemap_urls)} sitemap URLs.",
+    )
+
+    emit(result)
 
 
 def cmd_keyword_gaps(args):
@@ -632,16 +991,16 @@ def build_parser():
     sp.set_defaults(func=cmd_sitemap_check)
 
     # index-status
-    sp = sub.add_parser("index-status", help="Check Google indexing (stub)")
+    sp = sub.add_parser("index-status", help="Check Google indexing via Search Console")
     sp.set_defaults(func=cmd_index_status)
 
     # rankings
-    sp = sub.add_parser("rankings", help="Check keyword rankings (stub)")
+    sp = sub.add_parser("rankings", help="Check keyword rankings via Search Console")
     sp.add_argument("--keywords", required=True, help="Comma-separated keywords")
     sp.set_defaults(func=cmd_rankings)
 
     # search-console
-    sp = sub.add_parser("search-console", help="Search Console data (stub)")
+    sp = sub.add_parser("search-console", help="Search Console performance data")
     sp.add_argument("--days", type=int, default=28, help="Days of data (default: 28)")
     sp.set_defaults(func=cmd_search_console)
 
