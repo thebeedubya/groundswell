@@ -228,13 +228,51 @@ def _categorize(agent, event_type):
 
 
 def get_feed_items(conn, limit=50):
-    """Aggregate scout events, signals, and engagement into a unified feed."""
+    """Aggregate intel feed, events, and signals into a unified feed.
+
+    Intel feed items are the primary source — these are the actual news
+    items Scout finds. Events and signals provide supporting context.
+    """
     items = []
 
-    # Events from key agents
+    # 1. Intel feed — the real news (from intel_feed table)
+    try:
+        intel_rows = conn.execute(
+            "SELECT * FROM intel_feed ORDER BY id DESC LIMIT ?", (limit,)
+        ).fetchall()
+        for r in intel_rows:
+            r = dict(r)
+            cat = r.get("category", "intel")
+            # Map intel categories to feed categories
+            cat_map = {
+                "trend": "intel", "tier1_activity": "intel",
+                "newsjack": "urgent", "competitive": "intel",
+                "opportunity": "opportunity", "conversation": "engagement",
+            }
+            items.append({
+                "id": f"intel-{r['id']}",
+                "type": "intel",
+                "source": r.get("source_agent", "scout"),
+                "event_type": r.get("category", ""),
+                "headline": r.get("headline", ""),
+                "detail": r.get("detail", ""),
+                "timestamp": r.get("created_at", ""),
+                "category": cat_map.get(cat, "intel"),
+                "target": r.get("target_handle", ""),
+                "url": r.get("source_url", ""),
+                "relevance": r.get("relevance_score", 0.5),
+                "acted_on": bool(r.get("acted_on", 0)),
+                "tags": r.get("tags", ""),
+                "raw": {},
+            })
+    except Exception:
+        pass  # Table might not exist yet
+
+    # 2. Key agent events (engagement activity)
     rows = conn.execute(
-        "SELECT * FROM events WHERE agent IN ('scout', 'outbound_engager', 'inbound', 'publisher', 'creator', 'analyst', 'orchestrator') "
-        "ORDER BY id DESC LIMIT ?", (limit,)
+        "SELECT * FROM events WHERE agent IN ('outbound_engager', 'inbound', 'publisher') "
+        "AND event_type IN ('post_sent', 'reply_sent', 'qt_sent', 'engagement_sent') "
+        "ORDER BY id DESC LIMIT 20"
     ).fetchall()
     for r in rows:
         r = dict(r)
@@ -250,13 +288,13 @@ def get_feed_items(conn, limit=50):
             "headline": _make_headline(r["agent"], r.get("event_type", ""), details),
             "detail": _make_detail(details),
             "timestamp": r.get("timestamp", ""),
-            "category": _categorize(r["agent"], r.get("event_type", "")),
+            "category": "engagement",
             "raw": details,
         })
 
-    # Pending signals
+    # 3. Pending signals (urgent items)
     signals = conn.execute(
-        "SELECT * FROM signals WHERE consumed_at IS NULL ORDER BY id DESC LIMIT 20"
+        "SELECT * FROM signals WHERE consumed_at IS NULL ORDER BY id DESC LIMIT 10"
     ).fetchall()
     for s in signals:
         s = dict(s)
@@ -306,6 +344,18 @@ def create_command_signal(conn, item_id, action, context=None):
         "VALUES (?, 'newsroom', ?, 3, ?)",
         (signal_type, data, ts),
     )
+
+    # If this is an intel feed item, mark it as acted on
+    if isinstance(item_id, str) and item_id.startswith("intel-"):
+        try:
+            intel_id = int(item_id.replace("intel-", ""))
+            conn.execute(
+                "UPDATE intel_feed SET acted_on = 1, acted_action = ? WHERE id = ?",
+                (action, intel_id),
+            )
+        except (ValueError, TypeError):
+            pass
+
     conn.commit()
     return {
         "signal_id": cursor.lastrowid,

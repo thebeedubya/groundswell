@@ -212,22 +212,35 @@ python3 tools/signal.py emit --type NEWSJACK_READY --data '{"source": "https://.
 python3 tools/signal.py emit --type HOT_TARGET --data '{"handle": "@target", "post_id": "456", "score": 87, "reason": "Tier 2 account posted about cross-brain AI with 50K impressions"}'
 ```
 
+### Write Intel to Feed
+Every finding goes to the intel feed. Brad sees it in the newsroom and can click to act on it.
+```bash
+# Tier 1 activity
+python3 tools/db.py write-intel --category tier1_activity --headline "@karpathy discussing context window scaling — 1.7M impressions" --detail "Thread about 1M+ context changing agent architecture. Directly relevant to our cross-brain work." --source scout --target karpathy --url "https://x.com/karpathy/status/123" --relevance 0.9 --tags '["ai_agents","tier1"]'
+
+# Trending topic / newsjack
+python3 tools/db.py write-intel --category newsjack --headline "Virginia cannabis bill passes committee — trending on X" --detail "HB 2474 advancing. Cannabis operators need compliance guidance. Perfect angle." --source scout --relevance 0.95 --tags '["cannabis","legislation","urgent"]'
+
+# Competitive intel
+python3 tools/db.py write-intel --category competitive --headline "Dan Shipper published 'AI-Native Operations' on LinkedIn" --detail "Closest comp narrative. SaaS focus, no regulated industry proof." --source scout --target danshipper --platform linkedin --relevance 0.7 --tags '["competitor","monitor"]'
+
+# Conversation opportunity
+python3 tools/db.py write-intel --category conversation --headline "@simonw live-coding agent framework — discussing exit-and-reinvoke" --detail "Mentioned our pattern. Could engage with our implementation details." --source scout --target simonw --relevance 0.8 --tags '["engagement","builder"]'
+
+# Opportunity (conference, podcast, etc.)
+python3 tools/db.py write-intel --category opportunity --headline "MJBizCon 2026 speaker apps open — deadline April 10" --detail "Cannabis + AI ops talk. 'Zero Engineers, 1800 Commits' pitch." --source scout --relevance 0.95 --tags '["speaking","cannabis","deadline"]'
+```
+
 ### Log Activity
 ```bash
-# Log scan completion
-python3 tools/db.py insert events --data '{"agent": "scout", "event_type": "scan_complete", "details": "{\"source\": \"x_trending\", \"items_checked\": 50, \"signals_emitted\": 2}", "timestamp": "ISO_TIMESTAMP"}'
-
-# Log competitive intelligence
-python3 tools/db.py insert events --data '{"agent": "scout", "event_type": "competitive_intel", "details": "{\"handle\": \"@competitor\", \"observation\": \"Started using AI Operator language\", \"threat_level\": \"low\"}", "timestamp": "ISO_TIMESTAMP"}'
+# Log scan completion (still use events for operational tracking)
+python3 tools/db.py log-event --agent scout --type scan_complete --details '{"sources_checked": 5, "intel_items_written": 3, "signals_emitted": 1}'
 ```
 
 ### Track Opportunities
 ```bash
-# Log a conference CFP
-python3 tools/db.py insert events --data '{"agent": "scout", "event_type": "opportunity_detected", "details": "{\"type\": \"conference_cfp\", \"name\": \"Benzinga Cannabis Conference\", \"deadline\": \"2026-05-15\", \"url\": \"https://...\", \"notes\": \"Speaker applications open\"}", "timestamp": "ISO_TIMESTAMP"}'
-
-# Notify Brad of opportunity
-python3 tools/telegram.py send --text "OPPORTUNITY: Benzinga Cannabis Conference speaker applications open. Deadline: May 15. This is the backup speaking gig if MJBizCon timing doesn't work."
+# High-priority opportunities also get a Telegram alert
+python3 tools/telegram.py send --text "OPPORTUNITY: Benzinga Cannabis Conference speaker applications open. Deadline: May 15."
 ```
 
 ### Brad Podcast Monitoring

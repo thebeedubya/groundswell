@@ -125,8 +125,9 @@ All tools are invoked as `python3 tools/<tool>.py <command> [args]`.
 | `tools/policy.py` | `check --action post --text "..." --platform x` | Policy safety check (MUST call before any outbound action) |
 | `tools/policy.py` | `check --action reply --text "..." --target HANDLE --platform x` | Policy check for engagement |
 | `tools/policy.py` | `status` | Get current brand safety color and trust phase |
-| `tools/db.py` | `query "SELECT ..."` | Query the groundswell.db database |
-| `tools/db.py` | `insert TABLE --data '{"key": "value"}'` | Insert a row |
+| `tools/db.py` | `write-intel --category X --headline "..." --source scout` | Write to intel feed (newsroom) |
+| `tools/db.py` | `read-intel [--unacted]` | Read intel feed items |
+| `tools/db.py` | `act-intel --id N --action replied` | Mark intel item as acted on |
 | `tools/db.py` | `update TABLE --where "condition" --data '{"key": "value"}'` | Update rows |
 | `tools/learning.py` | `log-content --post-id ID --theme T --format F` | Log content to learning engine |
 | `tools/learning.py` | `log-engagement --post-id ID --action A --target HANDLE` | Log engagement action |

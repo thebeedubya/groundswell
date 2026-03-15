@@ -266,6 +266,25 @@ CREATE TABLE IF NOT EXISTS learned_models (
     sample_size INTEGER,
     updated_at TEXT NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS intel_feed (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    category TEXT NOT NULL,
+    headline TEXT NOT NULL,
+    detail TEXT,
+    source_agent TEXT NOT NULL,
+    source_url TEXT,
+    target_handle TEXT,
+    platform TEXT,
+    relevance_score REAL DEFAULT 0.5,
+    actionable BOOLEAN DEFAULT 1,
+    acted_on BOOLEAN DEFAULT 0,
+    acted_action TEXT,
+    tags TEXT,
+    raw_data TEXT,
+    created_at TEXT NOT NULL,
+    expires_at TEXT
+);
 """
 
 
@@ -560,6 +579,52 @@ def cmd_update_action(args):
     emit({"ok": True, "key": args.key, "status": args.status, "updated_at": ts})
 
 
+def cmd_write_intel(args):
+    conn = get_connection(args.db)
+    ts = now_iso()
+    cursor = conn.execute(
+        "INSERT INTO intel_feed (category, headline, detail, source_agent, source_url, "
+        "target_handle, platform, relevance_score, tags, raw_data, created_at) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        (
+            args.category, args.headline, args.detail, args.source,
+            args.url, args.target, args.platform or "x",
+            args.relevance or 0.5, args.tags, args.data, ts,
+        ),
+    )
+    conn.commit()
+    conn.close()
+    emit({"ok": True, "intel_id": cursor.lastrowid, "created_at": ts})
+
+
+def cmd_read_intel(args):
+    conn = get_connection(args.db)
+    limit = args.limit or 50
+    if args.unacted:
+        rows = conn.execute(
+            "SELECT * FROM intel_feed WHERE acted_on = 0 ORDER BY relevance_score DESC, id DESC LIMIT ?",
+            (limit,),
+        ).fetchall()
+    else:
+        rows = conn.execute(
+            "SELECT * FROM intel_feed ORDER BY id DESC LIMIT ?",
+            (limit,),
+        ).fetchall()
+    conn.close()
+    emit({"intel": [dict(r) for r in rows], "count": len(rows)})
+
+
+def cmd_act_intel(args):
+    conn = get_connection(args.db)
+    conn.execute(
+        "UPDATE intel_feed SET acted_on = 1, acted_action = ? WHERE id = ?",
+        (args.action, args.id),
+    )
+    conn.commit()
+    conn.close()
+    emit({"ok": True, "intel_id": args.id, "action": args.action})
+
+
 # ---------------------------------------------------------------------------
 # CLI parser
 # ---------------------------------------------------------------------------
@@ -655,6 +720,29 @@ def build_parser():
     p.add_argument("--key", required=True)
     p.add_argument("--status", required=True)
 
+    # write-intel
+    p = sub.add_parser("write-intel", help="Write an intel feed item")
+    p.add_argument("--category", required=True, help="trend, tier1_activity, newsjack, competitive, opportunity, conversation")
+    p.add_argument("--headline", required=True)
+    p.add_argument("--detail", default=None)
+    p.add_argument("--source", required=True, help="Source agent name")
+    p.add_argument("--url", default=None, help="Source URL (tweet, article)")
+    p.add_argument("--target", default=None, help="Target handle if relevant")
+    p.add_argument("--platform", default="x")
+    p.add_argument("--relevance", type=float, default=0.5)
+    p.add_argument("--tags", default=None, help="JSON array of tags")
+    p.add_argument("--data", default=None, help="Raw JSON data")
+
+    # read-intel
+    p = sub.add_parser("read-intel", help="Read intel feed items")
+    p.add_argument("--limit", type=int, default=50)
+    p.add_argument("--unacted", action="store_true", help="Only show items not yet acted on")
+
+    # act-intel
+    p = sub.add_parser("act-intel", help="Mark intel item as acted on")
+    p.add_argument("--id", type=int, required=True)
+    p.add_argument("--action", required=True, help="Action taken: replied, qt, created, boosted, dismissed")
+
     return parser
 
 
@@ -681,6 +769,9 @@ COMMANDS = {
     "pending-actions": cmd_pending_actions,
     "add-action": cmd_add_action,
     "update-action": cmd_update_action,
+    "write-intel": cmd_write_intel,
+    "read-intel": cmd_read_intel,
+    "act-intel": cmd_act_intel,
 }
 
 
