@@ -133,6 +133,187 @@ def get_quick_stats(conn):
     }
 
 
+def _make_headline(agent, event_type, details):
+    """Produce a human-readable headline from an event."""
+    a = (agent or "system").lower()
+    et = (event_type or "").lower()
+
+    if a == "scout":
+        if "scan" in et:
+            trends = details.get("trends_found", details.get("trends", "?"))
+            opps = details.get("opportunities", 0)
+            return f"Scout completed scan: {trends} trends, {opps} opportunities"
+        if "trend" in et:
+            return f"Trend detected: {details.get('topic', details.get('trend', 'unknown'))}"
+        if "opportunity" in et or "newsjack" in et:
+            return f"Opportunity: {details.get('topic', details.get('title', 'new opening'))}"
+        if "competitive" in et:
+            return f"Competitive intel: {details.get('competitor', details.get('target', 'rival activity'))}"
+        return f"Scout: {event_type}"
+
+    if "outbound" in a:
+        if "scan" in et:
+            query = details.get("query", details.get("topic", ""))
+            count = details.get("candidates", details.get("count", "?"))
+            return f"Outbound scanned: '{query}' — {count} candidates"
+        if "engage" in et or "reply" in et:
+            target = details.get("target", details.get("username", "unknown"))
+            return f"Engaged with @{target}"
+        return f"Outbound: {event_type}"
+
+    if "inbound" in a:
+        if "reply" in et:
+            target = details.get("username", details.get("target", "someone"))
+            topic = details.get("topic", details.get("thread", ""))
+            return f"Replied to @{target}" + (f" on {topic}" if topic else "")
+        if "mention" in et:
+            return f"Mention detected from @{details.get('username', 'unknown')}"
+        return f"Inbound: {event_type}"
+
+    if "publisher" in a:
+        if "post" in et or "publish" in et:
+            title = details.get("title", details.get("content", "content"))
+            if len(title) > 50:
+                title = title[:47] + "..."
+            return f"Published: {title}"
+        return f"Publisher: {event_type}"
+
+    if "creator" in a:
+        if "draft" in et or "create" in et:
+            return f"Drafted: {details.get('title', details.get('type', 'content'))}"
+        return f"Creator: {event_type}"
+
+    if "analyst" in a:
+        if "report" in et or "analysis" in et:
+            return f"Analysis: {details.get('topic', details.get('metric', 'report ready'))}"
+        return f"Analyst: {event_type}"
+
+    if "orchestrat" in a:
+        return f"Orchestrator: {event_type}"
+
+    return f"{agent}: {event_type}"
+
+
+def _make_detail(details):
+    """Produce a brief detail line from event details."""
+    if not details:
+        return ""
+    # Try common fields
+    for key in ("summary", "description", "message", "reason", "content", "text"):
+        if key in details:
+            val = str(details[key])
+            return val[:120] + "..." if len(val) > 120 else val
+    # Fallback: compact json
+    compact = json.dumps(details)
+    return compact[:100] + "..." if len(compact) > 100 else compact
+
+
+def _categorize(agent, event_type):
+    """Categorize a feed item for color-coding."""
+    a = (agent or "").lower()
+    et = (event_type or "").lower()
+
+    if "urgent" in et or "spike" in et or "alert" in et:
+        return "urgent"
+    if "opportunity" in et or "newsjack" in et:
+        return "opportunity"
+    if a == "scout" or "scan" in et or "trend" in et or "competitive" in et:
+        return "intel"
+    if "signal" in et or "hot" in et or "breakout" in et:
+        return "signal"
+    # engagement / posts
+    if "outbound" in a or "inbound" in a or "publisher" in a or "post" in et or "engage" in et or "reply" in et:
+        return "engagement"
+    return "intel"
+
+
+def get_feed_items(conn, limit=50):
+    """Aggregate scout events, signals, and engagement into a unified feed."""
+    items = []
+
+    # Events from key agents
+    rows = conn.execute(
+        "SELECT * FROM events WHERE agent IN ('scout', 'outbound_engager', 'inbound', 'publisher', 'creator', 'analyst', 'orchestrator') "
+        "ORDER BY id DESC LIMIT ?", (limit,)
+    ).fetchall()
+    for r in rows:
+        r = dict(r)
+        try:
+            details = json.loads(r["details"]) if r.get("details") else {}
+        except (json.JSONDecodeError, TypeError):
+            details = {}
+        items.append({
+            "id": r["id"],
+            "type": "event",
+            "source": r["agent"],
+            "event_type": r.get("event_type", ""),
+            "headline": _make_headline(r["agent"], r.get("event_type", ""), details),
+            "detail": _make_detail(details),
+            "timestamp": r.get("timestamp", ""),
+            "category": _categorize(r["agent"], r.get("event_type", "")),
+            "raw": details,
+        })
+
+    # Pending signals
+    signals = conn.execute(
+        "SELECT * FROM signals WHERE consumed_at IS NULL ORDER BY id DESC LIMIT 20"
+    ).fetchall()
+    for s in signals:
+        s = dict(s)
+        try:
+            data = json.loads(s["data"]) if s.get("data") else {}
+        except (json.JSONDecodeError, TypeError):
+            data = {}
+        items.append({
+            "id": f"sig-{s['id']}",
+            "type": "signal",
+            "source": s.get("source_agent", "system"),
+            "event_type": s.get("type", "SIGNAL"),
+            "headline": f"SIGNAL: {s.get('type', 'UNKNOWN')}",
+            "detail": json.dumps(data)[:100] if data else "",
+            "timestamp": s.get("created_at", ""),
+            "category": "signal",
+            "raw": data,
+        })
+
+    # Sort by timestamp descending
+    items.sort(key=lambda x: x.get("timestamp", ""), reverse=True)
+    return items[:limit]
+
+
+def create_command_signal(conn, item_id, action, context=None):
+    """Create a signal in the database from a manual command."""
+    action_map = {
+        "reply": "MANUAL_ENGAGE",
+        "qt": "MANUAL_QT",
+        "create": "MANUAL_CREATE",
+        "boost": "MANUAL_BOOST",
+    }
+    signal_type = action_map.get(action)
+    if not signal_type:
+        return None
+
+    ts = now_iso()
+    data = json.dumps({
+        "source_item_id": item_id,
+        "action": action,
+        "context": context or {},
+        "created_by": "newsroom_ui",
+    })
+
+    cursor = conn.execute(
+        "INSERT INTO signals (type, source_agent, data, priority, created_at) "
+        "VALUES (?, 'newsroom', ?, 3, ?)",
+        (signal_type, data, ts),
+    )
+    conn.commit()
+    return {
+        "signal_id": cursor.lastrowid,
+        "type": signal_type,
+        "created_at": ts,
+    }
+
+
 def get_full_state(conn):
     return {
         "brand_safety": get_brand_safety(conn),
@@ -142,6 +323,7 @@ def get_full_state(conn):
         "signals": get_pending_signals(conn),
         "schedule": get_schedule(conn),
         "stats": get_quick_stats(conn),
+        "feed": get_feed_items(conn, limit=50),
         "timestamp": now_iso(),
     }
 
@@ -176,11 +358,11 @@ body{
 .page{
   display:grid;
   grid-template-rows:56px 1fr 44px;
-  grid-template-columns:1fr 240px;
+  grid-template-columns:320px 1fr 240px;
   grid-template-areas:
-    "topbar   topbar"
-    "floor    sidebar"
-    "ticker   ticker";
+    "topbar   topbar   topbar"
+    "newsfeed floor    sidebar"
+    "ticker   ticker   ticker";
   width:100vw;height:100vh;
 }
 
@@ -540,6 +722,156 @@ body{
 }
 
 /* ========================================================================
+   NEWS FEED (Bloomberg-style left sidebar)
+   ======================================================================== */
+.newsfeed{
+  grid-area:newsfeed;
+  background:#0c1018;
+  border-right:1px solid #1b2330;
+  overflow-y:auto;
+  scrollbar-width:thin;
+  scrollbar-color:#30363d #0c1018;
+}
+.feed-header{
+  position:sticky;
+  top:0;
+  background:#0c1018;
+  padding:12px 16px;
+  border-bottom:1px solid #1b2330;
+  display:flex;
+  align-items:center;
+  gap:8px;
+  font-size:11px;
+  letter-spacing:3px;
+  color:#58a6ff;
+  z-index:5;
+}
+.feed-live-dot{
+  width:6px;height:6px;border-radius:50%;
+  background:#3fb950;
+  animation:livePulse 2s ease-in-out infinite;
+}
+@keyframes livePulse{
+  0%,100%{opacity:.4;box-shadow:0 0 2px #3fb950}
+  50%{opacity:1;box-shadow:0 0 8px #3fb950}
+}
+.feed-count{
+  margin-left:auto;
+  font-size:10px;
+  color:#484f58;
+  letter-spacing:0;
+}
+.feed-item{
+  padding:10px 16px;
+  border-bottom:1px solid #161b22;
+  border-left:3px solid transparent;
+  cursor:pointer;
+  transition:background 0.2s;
+  position:relative;
+}
+.feed-item:nth-child(odd){background:#0d1117}
+.feed-item:nth-child(even){background:#111820}
+.feed-item:hover{background:#161b22}
+.feed-item.category-intel{border-left-color:#58a6ff}
+.feed-item.category-engagement{border-left-color:#3fb950}
+.feed-item.category-signal{border-left-color:#d29922}
+.feed-item.category-opportunity{border-left-color:#d2a8ff}
+.feed-item.category-urgent{border-left-color:#f85149}
+.feed-item.new{animation:feedFlash 1s ease-out}
+@keyframes feedFlash{
+  0%{background:rgba(88,166,255,.15)}
+  100%{background:transparent}
+}
+.feed-item-header{
+  display:flex;
+  align-items:center;
+  gap:6px;
+  margin-bottom:3px;
+}
+.feed-time{font-size:10px;color:#484f58;flex-shrink:0}
+.feed-source{
+  padding:1px 6px;
+  border-radius:8px;
+  font-size:9px;
+  font-weight:700;
+  letter-spacing:.5px;
+  text-transform:uppercase;
+  flex-shrink:0;
+}
+.feed-source.src-scout{background:rgba(86,211,100,.15);color:#56d364}
+.feed-source.src-outbound{background:rgba(210,168,255,.15);color:#d2a8ff}
+.feed-source.src-inbound{background:rgba(121,192,255,.15);color:#79c0ff}
+.feed-source.src-publisher{background:rgba(63,185,80,.15);color:#3fb950}
+.feed-source.src-creator{background:rgba(240,136,62,.15);color:#f0883e}
+.feed-source.src-analyst{background:rgba(210,153,34,.15);color:#d29922}
+.feed-source.src-orchestrator{background:rgba(88,166,255,.15);color:#58a6ff}
+.feed-source.src-system{background:rgba(139,148,158,.15);color:#8b949e}
+.feed-headline{
+  font-size:12px;
+  color:#c9d1d9;
+  line-height:1.3;
+  margin-bottom:2px;
+}
+.feed-detail{
+  font-size:10px;
+  color:#484f58;
+  line-height:1.3;
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+}
+.feed-act-btn{
+  position:absolute;
+  top:10px;right:10px;
+  padding:2px 8px;
+  font-size:9px;
+  font-weight:700;
+  letter-spacing:1px;
+  border:1px solid #30363d;
+  border-radius:3px;
+  background:#0d1117;
+  color:#58a6ff;
+  cursor:pointer;
+  font-family:inherit;
+  opacity:0;
+  transition:opacity 0.15s;
+}
+.feed-item:hover .feed-act-btn{opacity:1}
+.feed-act-btn:hover{background:#58a6ff;color:#0a0e14;border-color:#58a6ff}
+.feed-actions{
+  display:none;
+  padding:8px 16px;
+  background:#161b22;
+  border-bottom:1px solid #1b2330;
+  gap:6px;
+  flex-wrap:wrap;
+}
+.feed-actions.active{display:flex}
+.feed-action-btn{
+  padding:4px 10px;
+  font-size:10px;
+  border:1px solid #30363d;
+  border-radius:4px;
+  background:#0d1117;
+  color:#c9d1d9;
+  cursor:pointer;
+  font-family:inherit;
+  letter-spacing:1px;
+  transition:all 0.15s;
+}
+.feed-action-btn:hover{
+  background:#58a6ff;
+  color:#0a0e14;
+  border-color:#58a6ff;
+}
+.feed-action-btn.queued{
+  background:#3fb950;
+  color:#0a0e14;
+  border-color:#3fb950;
+  pointer-events:none;
+}
+
+/* ========================================================================
    SCROLLBAR
    ======================================================================== */
 ::-webkit-scrollbar{width:4px}
@@ -564,6 +896,16 @@ body{
     <div class="topbar-right">
       <div class="clock" id="clock">00:00:00 UTC</div>
     </div>
+  </div>
+
+  <!-- ============ NEWS FEED (Bloomberg-style) ============ -->
+  <div class="newsfeed" id="newsfeed">
+    <div class="feed-header">
+      <div class="feed-live-dot"></div>
+      INTEL FEED
+      <span class="feed-count" id="feed-count">0 items</span>
+    </div>
+    <div id="feed-list"></div>
   </div>
 
   <!-- ============ MAIN FLOOR ============ -->
@@ -1006,6 +1348,128 @@ function updateTopbar(data){
 }
 
 /* =====================================================================
+   NEWS FEED
+   ===================================================================== */
+var knownFeedIds = {};
+var activeActionPanel = null;
+
+function feedSourceClass(source){
+  var s = (source||'').toLowerCase();
+  if(s.indexOf('scout')>=0) return 'src-scout';
+  if(s.indexOf('outbound')>=0) return 'src-outbound';
+  if(s.indexOf('inbound')>=0) return 'src-inbound';
+  if(s.indexOf('publisher')>=0) return 'src-publisher';
+  if(s.indexOf('creator')>=0) return 'src-creator';
+  if(s.indexOf('analyst')>=0) return 'src-analyst';
+  if(s.indexOf('orchestrat')>=0) return 'src-orchestrator';
+  return 'src-system';
+}
+
+function feedSourceLabel(source){
+  var s = (source||'').toLowerCase();
+  if(s.indexOf('scout')>=0) return 'SCT';
+  if(s.indexOf('outbound')>=0) return 'OUT';
+  if(s.indexOf('inbound')>=0) return 'INB';
+  if(s.indexOf('publisher')>=0) return 'PUB';
+  if(s.indexOf('creator')>=0) return 'CRE';
+  if(s.indexOf('analyst')>=0) return 'ANL';
+  if(s.indexOf('orchestrat')>=0) return 'ORC';
+  return 'SYS';
+}
+
+function toggleActions(itemId){
+  var panel = document.getElementById('actions-'+itemId);
+  if(!panel) return;
+  if(activeActionPanel && activeActionPanel !== panel){
+    activeActionPanel.classList.remove('active');
+  }
+  panel.classList.toggle('active');
+  activeActionPanel = panel.classList.contains('active') ? panel : null;
+}
+
+function sendCommand(action, itemId, rawData, btn){
+  btn.textContent = 'SENDING...';
+  btn.classList.add('queued');
+  fetch('/api/command', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({item_id: itemId, action: action, context: rawData || {}})
+  })
+  .then(function(r){ return r.json(); })
+  .then(function(data){
+    btn.textContent = 'QUEUED';
+    setTimeout(function(){
+      btn.textContent = action.toUpperCase();
+      btn.classList.remove('queued');
+      var panel = btn.parentElement;
+      if(panel) panel.classList.remove('active');
+      activeActionPanel = null;
+    }, 1500);
+  })
+  .catch(function(e){
+    btn.textContent = 'ERROR';
+    btn.classList.remove('queued');
+    setTimeout(function(){ btn.textContent = action.toUpperCase(); }, 2000);
+  });
+}
+
+function dismissFeedItem(itemId, btn){
+  var item = document.getElementById('feed-'+itemId);
+  if(item){
+    item.style.opacity = '0.3';
+    item.style.pointerEvents = 'none';
+  }
+  var panel = btn.parentElement;
+  if(panel) panel.classList.remove('active');
+  activeActionPanel = null;
+}
+
+function updateFeed(feedData){
+  if(!feedData || feedData.length === 0) return;
+
+  var list = document.getElementById('feed-list');
+  var countEl = document.getElementById('feed-count');
+  countEl.textContent = feedData.length + ' items';
+
+  var html = '';
+  for(var i=0; i<feedData.length; i++){
+    var item = feedData[i];
+    var id = item.id;
+    var isNew = !knownFeedIds[id];
+    knownFeedIds[id] = true;
+
+    var catClass = 'category-' + (item.category || 'intel');
+    var newClass = isNew ? ' new' : '';
+    var srcClass = feedSourceClass(item.source);
+    var srcLabel = feedSourceLabel(item.source);
+    var rawJson = esc(JSON.stringify(item.raw || {}));
+
+    html += '<div class="feed-item ' + catClass + newClass + '" id="feed-' + esc(String(id)) + '" onclick="toggleActions(\'' + esc(String(id)) + '\')">';
+    html += '<button class="feed-act-btn" onclick="event.stopPropagation();toggleActions(\'' + esc(String(id)) + '\')">ACT</button>';
+    html += '<div class="feed-item-header">';
+    html += '<span class="feed-time">' + timeAgo(item.timestamp) + '</span>';
+    html += '<span class="feed-source ' + srcClass + '">' + srcLabel + '</span>';
+    html += '</div>';
+    html += '<div class="feed-headline">' + esc(item.headline) + '</div>';
+    if(item.detail){
+      html += '<div class="feed-detail">' + esc(item.detail) + '</div>';
+    }
+    html += '</div>';
+
+    /* Action panel */
+    html += '<div class="feed-actions" id="actions-' + esc(String(id)) + '">';
+    html += '<button class="feed-action-btn" onclick="event.stopPropagation();sendCommand(\'reply\',\'' + esc(String(id)) + '\',' + rawJson + ',this)">REPLY</button>';
+    html += '<button class="feed-action-btn" onclick="event.stopPropagation();sendCommand(\'qt\',\'' + esc(String(id)) + '\',' + rawJson + ',this)">QT</button>';
+    html += '<button class="feed-action-btn" onclick="event.stopPropagation();sendCommand(\'create\',\'' + esc(String(id)) + '\',' + rawJson + ',this)">CREATE</button>';
+    html += '<button class="feed-action-btn" onclick="event.stopPropagation();sendCommand(\'boost\',\'' + esc(String(id)) + '\',' + rawJson + ',this)">BOOST</button>';
+    html += '<button class="feed-action-btn" onclick="event.stopPropagation();dismissFeedItem(\'' + esc(String(id)) + '\',this)">DISMISS</button>';
+    html += '</div>';
+  }
+
+  list.innerHTML = html;
+}
+
+/* =====================================================================
    MAIN UPDATE
    ===================================================================== */
 function updateAll(data){
@@ -1014,6 +1478,7 @@ function updateAll(data){
   updateFlares(data.signals);
   updateTicker(data.events);
   updateSidebar(data);
+  updateFeed(data.feed);
 }
 
 function fetchState(){
@@ -1111,8 +1576,62 @@ class NewsroomHandler(BaseHTTPRequestHandler):
             finally:
                 conn.close()
 
+        elif path == "/api/feed":
+            limit = int(qs.get("limit", [50])[0])
+            conn = get_conn()
+            try:
+                data = get_feed_items(conn, limit=limit)
+                self._send_json({"feed": data, "count": len(data)})
+            finally:
+                conn.close()
+
         else:
             self._send_json({"error": "Not found"}, status=404)
+
+    def do_POST(self):
+        parsed = urllib.parse.urlparse(self.path)
+        path = parsed.path
+
+        content_length = int(self.headers.get("Content-Length", 0))
+        body = self.rfile.read(content_length) if content_length else b""
+
+        if path == "/api/command":
+            try:
+                payload = json.loads(body) if body else {}
+            except json.JSONDecodeError:
+                self._send_json({"error": "Invalid JSON"}, status=400)
+                return
+
+            item_id = payload.get("item_id")
+            action = payload.get("action", "")
+            context = payload.get("context", {})
+
+            if action == "dismiss":
+                self._send_json({"status": "dismissed", "item_id": item_id})
+                return
+
+            if action not in ("reply", "qt", "create", "boost"):
+                self._send_json({"error": f"Unknown action: {action}"}, status=400)
+                return
+
+            conn = get_conn()
+            try:
+                result = create_command_signal(conn, item_id, action, context)
+                if result:
+                    self._send_json({"status": "queued", **result})
+                else:
+                    self._send_json({"error": "Failed to create signal"}, status=500)
+            finally:
+                conn.close()
+        else:
+            self._send_json({"error": "Not found"}, status=404)
+
+    def do_OPTIONS(self):
+        self.send_response(204)
+        self.send_header("Access-Control-Allow-Origin", "*")
+        self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+        self.send_header("Access-Control-Allow-Headers", "Content-Type")
+        self.end_headers()
 
 
 # ---------------------------------------------------------------------------
