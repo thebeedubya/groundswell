@@ -73,7 +73,7 @@ For each task, read the agent's base prompt:
 cat prompts/{agent}.md
 ```
 
-Where `{agent}` is the agent name from the task (e.g., `publisher`, `outbound_engager`, `creator`, `analyst`, `scout`, `inbound_engager`).
+Where `{agent}` is the agent name from the task (e.g., `publisher`, `outbound_engager`, `creator`, `analyst`, `scout`, `inbound_engager`, `seo`).
 
 ### Inject state
 

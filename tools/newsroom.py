@@ -249,6 +249,8 @@ def get_feed_items(conn, limit=50):
                 "trend": "intel", "tier1_activity": "intel",
                 "newsjack": "urgent", "competitive": "intel",
                 "opportunity": "opportunity", "conversation": "engagement",
+                "seo": "intel", "seo_alert": "urgent",
+                "ranking": "intel", "indexing": "intel",
             }
             items.append({
                 "id": f"intel-{r['id']}",
