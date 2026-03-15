@@ -16,12 +16,21 @@ platforms:
     max_replies_per_day: 40
     link_in_reply: true      # Never put links in main tweet
     image_boost: true        # Attach screenshots when available
+    # Posting windows (CT) — only post original content in these windows
+    # Replies/engagement can happen anytime
+    post_windows:
+      weekday: ["07:00-09:00", "11:30-13:00", "17:00-18:30"]
+      weekend: ["08:00-10:00", "12:00-13:00"]
   linkedin:
     enabled: true
     max_posts_per_day: 2     # More than 2 cannibalizes reach
     min_word_count: 200      # Dwell time is king
     target_word_count: 800   # Sweet spot for cannabis content
     link_in_comment: true    # Never put links in post body
+    # LinkedIn peaks Tues-Thurs morning. Never post evenings/weekends.
+    post_windows:
+      weekday: ["07:30-10:00", "12:00-13:00"]
+      weekend: []             # Never post to LinkedIn on weekends
   threads:
     enabled: false           # Enable when access token ready
     max_posts_per_day: 4

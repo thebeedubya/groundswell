@@ -261,6 +261,59 @@ def check_tier_target(conn, config, target, platform):
         return None, reasons, []
 
 
+def check_posting_window(config, platform):
+    """Block posts outside configured posting windows. Replies/engagement are always allowed."""
+    reasons = []
+    warnings = []
+
+    platform_config = config.get("platforms", {}).get(platform, {})
+    windows = platform_config.get("post_windows")
+    if not windows:
+        return None, reasons, []  # No windows configured — allow
+
+    try:
+        from zoneinfo import ZoneInfo
+    except ImportError:
+        return None, reasons, []  # Can't check without zoneinfo
+
+    tz_name = config.get("schedule", {}).get("timezone", "America/Chicago")
+    try:
+        tz = ZoneInfo(tz_name)
+    except Exception:
+        return None, reasons, []
+
+    now = datetime.now(tz)
+    day_type = "weekend" if now.weekday() >= 5 else "weekday"
+    day_windows = windows.get(day_type, [])
+
+    if not day_windows:
+        reasons.append(f"posting_window_closed: no {platform} posting on {day_type}s")
+        return "BLOCK", reasons, []
+
+    current_time = now.strftime("%H:%M")
+    in_window = False
+    next_window = None
+    for w in day_windows:
+        parts = w.split("-")
+        if len(parts) == 2:
+            start, end = parts[0].strip(), parts[1].strip()
+            if start <= current_time <= end:
+                in_window = True
+                break
+            if start > current_time and (next_window is None or start < next_window):
+                next_window = start
+
+    if not in_window:
+        window_str = ", ".join(day_windows)
+        msg = f"posting_window_closed: {platform} posts only allowed {window_str} CT ({day_type})"
+        if next_window:
+            msg += f" — next window at {next_window}"
+        reasons.append(msg)
+        return "BLOCK", reasons, []
+
+    return None, reasons, []
+
+
 def check_trust_phase_post(config, action):
     """Trust phase gate for post actions."""
     reasons = []
@@ -347,6 +400,13 @@ def run_checks(action, text, target, platform, config, conn):
     # 6. Trust Phase Gate (post actions)
     if action == "post":
         decision, reasons, warnings = check_trust_phase_post(config, action)
+        final_decision = merge_decision(final_decision, decision)
+        all_reasons.extend(reasons)
+        all_warnings.extend(warnings)
+
+    # 7. Posting Window Check (post actions only — replies/engagement anytime)
+    if action == "post" and platform:
+        decision, reasons, warnings = check_posting_window(config, platform)
         final_decision = merge_decision(final_decision, decision)
         all_reasons.extend(reasons)
         all_warnings.extend(warnings)
