@@ -10,6 +10,19 @@ brand:
   origin: "Lifelong builder — Osborne Executive at 10, BASIC accounting system, Novell networking, first ambulance EHR, enterprise architecture, Deputy CTO at Riverbed, CCO at Addium"
   superpower: "Translating complexity into consumption. Taking what the sophisticated world builds and making it work for operators."
 
+seo:
+  sites:
+    dbradwood:
+      url: "https://dbradwood.com"
+      ga4_id: "G-D1KM6BWGG4"
+      search_console: true
+      sitemap: "https://dbradwood.com/sitemap.xml"
+    aianna:
+      url: "https://aianna.ai"
+      ga4_id: "G-LMVZ3P4RVJ"
+      search_console: true
+      sitemap: null  # Single page, no sitemap yet
+
 platforms:
   x:
     enabled: true
