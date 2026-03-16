@@ -14,10 +14,13 @@ Usage:
 import argparse
 import json
 import os
+import sqlite3
 import sys
 import urllib.error
 import urllib.parse
 import urllib.request
+
+from _common import DB_PATH, now_iso
 
 from _x_auth import (
     REQUIRED_CREDS,
@@ -35,6 +38,20 @@ def emit(data):
     json.dump(data, sys.stdout, indent=2, default=str)
     sys.stdout.write("\n")
     sys.exit(0)
+
+
+def _log_api_call(platform, call_type, endpoint):
+    """Log an API call to the api_usage table."""
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        conn.execute(
+            "INSERT INTO api_usage (platform, call_type, endpoint, created_at) VALUES (?, ?, ?, ?)",
+            (platform, call_type, endpoint, now_iso()),
+        )
+        conn.commit()
+        conn.close()
+    except Exception:
+        pass  # Don't let logging failures break API calls
 
 
 # ---------------------------------------------------------------------------
@@ -79,6 +96,7 @@ def cmd_x(args):
         with urllib.request.urlopen(req) as resp:
             data = json.loads(resp.read().decode("utf-8"))
             post_id = data.get("data", {}).get("id")
+            _log_api_call("x", "write", "/2/tweets")
             emit({
                 "ok": True,
                 "platform": "x",
@@ -171,6 +189,7 @@ def post_to_linkedin(text, person_id, access_token):
     )
     try:
         with urllib.request.urlopen(req) as resp:
+            _log_api_call("linkedin", "write", "/rest/posts")
             return {
                 "ok": True,
                 "platform": "linkedin",

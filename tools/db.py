@@ -246,6 +246,14 @@ CREATE TABLE IF NOT EXISTS learned_models (
     updated_at TEXT NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS api_usage (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    platform TEXT NOT NULL,
+    call_type TEXT NOT NULL,
+    endpoint TEXT,
+    created_at TEXT NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS intel_feed (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     category TEXT NOT NULL,

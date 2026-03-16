@@ -15,11 +15,14 @@ Usage:
 
 import argparse
 import json
+import sqlite3
 import sys
 import time
 import urllib.error
 import urllib.parse
 import urllib.request
+
+from _common import DB_PATH, now_iso
 
 from _x_auth import (
     BRAD_USER_ID,
@@ -53,6 +56,20 @@ def emit(data):
     sys.exit(0)
 
 
+def _log_api_call(platform, call_type, endpoint):
+    """Log an API call to the api_usage table."""
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        conn.execute(
+            "INSERT INTO api_usage (platform, call_type, endpoint, created_at) VALUES (?, ?, ?, ?)",
+            (platform, call_type, endpoint, now_iso()),
+        )
+        conn.commit()
+        conn.close()
+    except Exception:
+        pass  # Don't let logging failures break API calls
+
+
 def _get(env, url, query_params):
     """Make an authenticated GET request to the X API v2."""
     auth_header = _build_auth_header(
@@ -69,6 +86,9 @@ def _get(env, url, query_params):
     try:
         with urllib.request.urlopen(req) as resp:
             data = json.loads(resp.read().decode("utf-8"))
+            # Log successful API call
+            path = urllib.parse.urlparse(url).path
+            _log_api_call("x", "read", path)
             return {"ok": True, "data": data}
     except urllib.error.HTTPError as e:
         return _api_error(e)

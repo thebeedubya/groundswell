@@ -367,6 +367,51 @@ def create_command_signal(conn, item_id, action, context=None):
     }
 
 
+def get_api_usage(conn):
+    """Get API usage counts for the current month."""
+    month_start = datetime.now(timezone.utc).strftime("%Y-%m-01T00:00:00Z")
+    month_label = datetime.now(timezone.utc).strftime("%Y-%m")
+
+    budgets = {
+        "x_reads_per_month": 10000,
+        "x_writes_per_month": 1500,
+        "linkedin_writes_per_month": 60,
+    }
+
+    try:
+        rows = conn.execute(
+            "SELECT platform, call_type, COUNT(*) as cnt "
+            "FROM api_usage WHERE created_at >= ? "
+            "GROUP BY platform, call_type",
+            (month_start,),
+        ).fetchall()
+    except Exception:
+        # Table might not exist yet
+        return {
+            "month": month_label,
+            "x_reads": 0, "x_writes": 0, "linkedin_writes": 0,
+            "total": 0, "budgets": budgets,
+        }
+
+    counts = {}
+    for r in rows:
+        key = f"{r['platform']}_{r['call_type']}"
+        counts[key] = r["cnt"]
+
+    x_reads = counts.get("x_read", 0)
+    x_writes = counts.get("x_write", 0)
+    linkedin_writes = counts.get("linkedin_write", 0)
+
+    return {
+        "month": month_label,
+        "x_reads": x_reads,
+        "x_writes": x_writes,
+        "linkedin_writes": linkedin_writes,
+        "total": x_reads + x_writes + linkedin_writes,
+        "budgets": budgets,
+    }
+
+
 def get_full_state(conn):
     return {
         "brand_safety": get_brand_safety(conn),
@@ -377,6 +422,7 @@ def get_full_state(conn):
         "schedule": get_schedule(conn),
         "stats": get_quick_stats(conn),
         "feed": get_feed_items(conn, limit=50),
+        "usage": get_api_usage(conn),
         "timestamp": now_iso(),
     }
 
@@ -1032,6 +1078,39 @@ body{
     </div>
 
     <div class="sidebar-section">
+      <h2>API Usage</h2>
+      <div id="usage-meters">
+        <div style="margin-bottom:8px">
+          <div style="display:flex;justify-content:space-between;font-size:10px;margin-bottom:3px">
+            <span class="stat-label">X Reads</span>
+            <span id="usage-x-reads-label" style="color:#8b949e">0 / 10,000</span>
+          </div>
+          <div style="background:#161b22;border-radius:3px;height:6px;overflow:hidden">
+            <div id="usage-x-reads-bar" style="height:100%;width:0%;border-radius:3px;transition:width 0.6s ease,background 0.6s ease;background:#3fb950"></div>
+          </div>
+        </div>
+        <div style="margin-bottom:8px">
+          <div style="display:flex;justify-content:space-between;font-size:10px;margin-bottom:3px">
+            <span class="stat-label">X Writes</span>
+            <span id="usage-x-writes-label" style="color:#8b949e">0 / 1,500</span>
+          </div>
+          <div style="background:#161b22;border-radius:3px;height:6px;overflow:hidden">
+            <div id="usage-x-writes-bar" style="height:100%;width:0%;border-radius:3px;transition:width 0.6s ease,background 0.6s ease;background:#3fb950"></div>
+          </div>
+        </div>
+        <div style="margin-bottom:8px">
+          <div style="display:flex;justify-content:space-between;font-size:10px;margin-bottom:3px">
+            <span class="stat-label">LinkedIn</span>
+            <span id="usage-linkedin-label" style="color:#8b949e">0 / 60</span>
+          </div>
+          <div style="background:#161b22;border-radius:3px;height:6px;overflow:hidden">
+            <div id="usage-linkedin-bar" style="height:100%;width:0%;border-radius:3px;transition:width 0.6s ease,background 0.6s ease;background:#3fb950"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="sidebar-section">
       <h2>Next Up</h2>
       <div id="schedule-list">
         <div style="color:#484f58;font-size:11px;font-style:italic">Loading...</div>
@@ -1351,12 +1430,37 @@ function updateTicker(events){
 /* =====================================================================
    UPDATE SIDEBAR
    ===================================================================== */
+function usageBarColor(pct){
+  if(pct>=80) return '#f85149';
+  if(pct>=50) return '#d29922';
+  return '#3fb950';
+}
+
+function updateUsageMeter(barId, labelId, current, budget, label){
+  var bar=document.getElementById(barId);
+  var lbl=document.getElementById(labelId);
+  if(!bar||!lbl) return;
+  var pct=budget>0?Math.min((current/budget)*100,100):0;
+  bar.style.width=pct+'%';
+  bar.style.background=usageBarColor(pct);
+  lbl.textContent=current.toLocaleString()+' / '+budget.toLocaleString();
+}
+
 function updateSidebar(data){
   if(data.stats){
     document.getElementById('stat-posts').textContent=data.stats.posts_today;
     document.getElementById('stat-actions').textContent=data.stats.actions_this_hour;
     document.getElementById('stat-signals').textContent=data.stats.pending_signals;
     document.getElementById('stat-backlog').textContent=data.stats.pending_approvals;
+  }
+
+  /* api usage */
+  if(data.usage){
+    var u=data.usage;
+    var b=u.budgets||{};
+    updateUsageMeter('usage-x-reads-bar','usage-x-reads-label',u.x_reads||0,b.x_reads_per_month||10000);
+    updateUsageMeter('usage-x-writes-bar','usage-x-writes-label',u.x_writes||0,b.x_writes_per_month||1500);
+    updateUsageMeter('usage-linkedin-bar','usage-linkedin-label',u.linkedin_writes||0,b.linkedin_writes_per_month||60);
   }
 
   /* schedule */
@@ -1635,6 +1739,13 @@ class NewsroomHandler(BaseHTTPRequestHandler):
             try:
                 data = get_feed_items(conn, limit=limit)
                 self._send_json({"feed": data, "count": len(data)})
+            finally:
+                conn.close()
+
+        elif path == "/api/usage":
+            conn = get_conn()
+            try:
+                self._send_json(get_api_usage(conn))
             finally:
                 conn.close()
 
