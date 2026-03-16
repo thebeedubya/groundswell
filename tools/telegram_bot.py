@@ -263,34 +263,115 @@ COMMANDS = {
 }
 
 
+def gather_context(conn):
+    """Gather full system context for agentic responses."""
+    ctx = {}
+
+    # Status
+    events_total = conn.execute("SELECT COUNT(*) as c FROM events").fetchone()["c"]
+    bs = conn.execute("SELECT value FROM strategy_state WHERE key='brand_safety_color'").fetchone()
+    ctx["brand_safety"] = json.loads(bs["value"]) if bs else "GREEN"
+    ctx["total_events"] = events_total
+
+    # Today's events
+    today = datetime.now(timezone.utc).strftime("%Y-%m-%dT")
+    today_events = conn.execute(
+        "SELECT agent, event_type, details FROM events WHERE timestamp >= ? ORDER BY id DESC LIMIT 15",
+        (today,),
+    ).fetchall()
+    ctx["today"] = [{"agent": r["agent"], "type": r["event_type"],
+                     "detail": (r["details"] or "")[:100]} for r in today_events]
+
+    # Pending approvals
+    approvals = conn.execute("SELECT idempotency_key, action_type, payload FROM pending_actions WHERE status='pending'").fetchall()
+    ctx["pending_approvals"] = len(approvals)
+    ctx["approval_details"] = [{"key": r["idempotency_key"][:50], "type": r["action_type"]} for r in approvals[:5]]
+
+    # Followers (from last snapshot)
+    snap = conn.execute(
+        "SELECT details FROM events WHERE event_type='follower_snapshot' ORDER BY id DESC LIMIT 1"
+    ).fetchone()
+    if snap and snap["details"]:
+        try:
+            d = json.loads(snap["details"])
+            ctx["followers"] = d.get("count") or d.get("followers")
+        except Exception:
+            pass
+
+    # Backlog
+    try:
+        with open(os.path.join(REPO_ROOT, "data", "backlog.json")) as f:
+            backlog = json.load(f)
+        pending = [b for b in backlog if not b.get("posted_at")]
+        ctx["backlog_pending"] = len(pending)
+        ctx["backlog_next"] = [{"type": b.get("type"), "platform": b.get("platform")}
+                               for b in sorted(pending, key=lambda x: x.get("priority", 99))[:3]]
+    except Exception:
+        pass
+
+    # API usage
+    month_start = datetime.now(timezone.utc).strftime("%Y-%m-01T00:00:00Z")
+    try:
+        rows = conn.execute(
+            "SELECT platform, call_type, COUNT(*) as cnt FROM api_usage WHERE created_at >= ? GROUP BY platform, call_type",
+            (month_start,),
+        ).fetchall()
+        ctx["api_usage"] = {f"{r['platform']}_{r['call_type']}": r["cnt"] for r in rows}
+    except Exception:
+        ctx["api_usage"] = {}
+
+    # Signals
+    signals = conn.execute("SELECT COUNT(*) as c FROM signals WHERE consumed_at IS NULL").fetchone()["c"]
+    ctx["pending_signals"] = signals
+
+    return ctx
+
+
+def agentic_response(question, conn):
+    """Use Claude to generate a natural response based on system context."""
+    ctx = gather_context(conn)
+
+    prompt = f"""You are the Groundswell system — Brad Wood's 8-agent social growth engine. Brad is asking you a question via Telegram. Answer conversationally, like a sharp ops manager giving a briefing. Be concise (Telegram messages should be short), specific with numbers, and proactive — if something needs Brad's attention, say so.
+
+SYSTEM CONTEXT:
+{json.dumps(ctx, indent=2, default=str)}
+
+BRAD'S QUESTION: {question}
+
+Respond in 2-5 short paragraphs. Use emoji sparingly. No markdown headers. Be direct."""
+
+    try:
+        result = subprocess.run(
+            ["/opt/homebrew/bin/claude", "-p", prompt,
+             "--no-session-persistence", "--model", "haiku"],
+            capture_output=True, text=True, timeout=30,
+            cwd=REPO_ROOT,
+        )
+        response = result.stdout.strip()
+        if response:
+            return response
+    except Exception as e:
+        print(f"[telegram_bot] Claude error: {e}", file=sys.stderr)
+
+    # Fallback to structured response if Claude fails
+    return cmd_status(conn)
+
+
 def handle_message(text, conn):
     """Parse a message and return a response."""
-    text = text.strip().lower()
+    original = text.strip()
+    lower = original.lower()
 
-    if text in ("help", "/help", "/start", "hi", "hello"):
+    # Direct commands that should NOT go through Claude (safety)
+    if lower in ("kill", "/kill", "stop", "halt", "emergency"):
+        return cmd_kill(conn)
+    if lower in ("resume", "/resume"):
+        return cmd_resume(conn)
+    if lower in ("help", "/help", "/start"):
         return cmd_help()
 
-    for cmd_name, handler in COMMANDS.items():
-        if text == cmd_name or text == f"/{cmd_name}":
-            return handler(conn)
-
-    # Fuzzy match
-    if "follow" in text:
-        return cmd_followers(conn)
-    if "status" in text or "how" in text:
-        return cmd_status(conn)
-    if "today" in text or "what" in text:
-        return cmd_today(conn)
-    if "backlog" in text or "queue" in text or "next" in text:
-        return cmd_backlog(conn)
-    if "usage" in text or "api" in text or "credit" in text:
-        return cmd_usage(conn)
-    if "kill" in text or "stop" in text or "halt" in text:
-        return cmd_kill(conn)
-    if "resume" in text or "start" in text or "go" in text:
-        return cmd_resume(conn)
-
-    return f"🤷 I don't understand \"{text}\". Try `help` for commands."
+    # Everything else goes through Claude for a natural response
+    return agentic_response(original, conn)
 
 
 def serve():
