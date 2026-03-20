@@ -433,10 +433,22 @@ def _publish_entry(conn, entry_id):
                        cwd=AIANNA_REPO, capture_output=True, timeout=10)
         subprocess.run(["git", "commit", "-m", f"diary: {row['date']} — {row['title']}"],
                        cwd=AIANNA_REPO, capture_output=True, timeout=10)
+        subprocess.run(["git", "push", "origin", "main"],
+                       cwd=AIANNA_REPO, capture_output=True, timeout=30)
         subprocess.run(["vercel", "--yes", "--prod"],
                        cwd=AIANNA_REPO, capture_output=True, timeout=120)
     except Exception:
         pass  # Deploy failure shouldn't block
+
+    # Notify Google of new content via sitemap resubmission
+    try:
+        subprocess.run(
+            ["python3", os.path.join(REPO_ROOT, "tools", "seo.py"),
+             "submit-urls", "--site", "https://aianna.ai"],
+            capture_output=True, timeout=60,
+        )
+    except Exception:
+        pass
 
     return True
 

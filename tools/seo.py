@@ -969,6 +969,150 @@ def cmd_competitors(args):
     _stub("competitors", "SERP API for competitor tracking")
 
 
+def cmd_submit_urls(args):
+    """Request Google to crawl/index URLs from sitemap via Search Console API.
+
+    Uses the URL Inspection API to check status, and submits the sitemap
+    to nudge Google to crawl discovered-but-not-indexed pages.
+    """
+    site = args.site.rstrip("/")
+
+    # 1. Get token with read-write scope
+    sa_path = os.environ.get(
+        "GOOGLE_SEARCH_CONSOLE_SA",
+        os.path.expanduser("~/.config/groundswell-seo-sa.json"),
+    )
+    if not os.path.exists(sa_path):
+        fail("Service account credentials not found. Set GOOGLE_SEARCH_CONSOLE_SA.")
+
+    with open(sa_path) as f:
+        sa = json.load(f)
+
+    # Build JWT with read-write scope
+    header = base64.urlsafe_b64encode(
+        json.dumps({"alg": "RS256", "typ": "JWT"}).encode()
+    ).rstrip(b"=")
+    now_ts = int(time.time())
+    claims = {
+        "iss": sa["client_email"],
+        "scope": "https://www.googleapis.com/auth/webmasters",
+        "aud": "https://oauth2.googleapis.com/token",
+        "iat": now_ts,
+        "exp": now_ts + 3600,
+    }
+    payload_b = base64.urlsafe_b64encode(json.dumps(claims).encode()).rstrip(b"=")
+    signing_input = header + b"." + payload_b
+
+    key_path = "/tmp/_gsc_key_rw.pem"
+    with open(key_path, "w") as f:
+        f.write(sa["private_key"])
+
+    proc = subprocess.run(
+        ["openssl", "dgst", "-sha256", "-sign", key_path],
+        input=signing_input,
+        capture_output=True,
+    )
+    os.unlink(key_path)
+
+    signature = base64.urlsafe_b64encode(proc.stdout).rstrip(b"=")
+    jwt_token = (header + b"." + payload_b + b"." + signature).decode()
+
+    import urllib.parse as _up
+    import urllib.request as _ur
+
+    token_data = _up.urlencode({
+        "grant_type": "urn:ietf:params:oauth:grant-type:jwt-bearer",
+        "assertion": jwt_token,
+    }).encode()
+    req = _ur.Request(
+        "https://oauth2.googleapis.com/token", data=token_data, method="POST"
+    )
+    try:
+        with _ur.urlopen(req) as resp:
+            token = json.loads(resp.read())["access_token"]
+    except Exception as e:
+        fail(f"Failed to get auth token: {e}")
+
+    # 2. Fetch sitemap URLs
+    try:
+        req = Request(f"{site}/sitemap.xml", headers={"User-Agent": USER_AGENT})
+        with urlopen(req, timeout=15) as resp:
+            tree = ElementTree.fromstring(resp.read())
+        ns = {"ns": "http://www.sitemaps.org/schemas/sitemap/0.9"}
+        urls = [loc.text for loc in tree.findall(".//ns:loc", ns) if loc.text]
+    except Exception as e:
+        fail(f"Failed to fetch sitemap: {e}")
+
+    # 3. Submit sitemap to Search Console (nudges Google to re-crawl)
+    encoded_site = _up.quote(f"sc-domain:{site.replace('https://', '')}", safe="")
+    sitemap_url = f"{site}/sitemap.xml"
+    try:
+        submit_req = Request(
+            f"https://www.googleapis.com/webmasters/v3/sites/{encoded_site}/sitemaps/{_up.quote(sitemap_url, safe='')}",
+            method="PUT",
+            headers={
+                "Authorization": f"Bearer {token}",
+                "Content-Type": "application/json",
+                "User-Agent": USER_AGENT,
+            },
+        )
+        with urlopen(submit_req) as resp:
+            sitemap_status = "submitted"
+    except HTTPError as e:
+        sitemap_status = f"error_{e.code}"
+    except Exception as e:
+        sitemap_status = f"error: {e}"
+
+    # 4. Inspect a sample of URLs to check their index status
+    inspected = []
+    sample = urls[:10]  # Don't hammer the API — check first 10
+    for url in sample:
+        try:
+            body = json.dumps({
+                "inspectionUrl": url,
+                "siteUrl": f"sc-domain:{site.replace('https://', '')}",
+            }).encode()
+            inspect_req = Request(
+                "https://searchconsole.googleapis.com/v1/urlInspection/index:inspect",
+                data=body,
+                method="POST",
+                headers={
+                    "Authorization": f"Bearer {token}",
+                    "Content-Type": "application/json",
+                    "User-Agent": USER_AGENT,
+                },
+            )
+            with urlopen(inspect_req, timeout=15) as resp:
+                result = json.loads(resp.read())
+            verdict = result.get("inspectionResult", {}).get("indexStatusResult", {})
+            inspected.append({
+                "url": url,
+                "verdict": verdict.get("verdict", "unknown"),
+                "coverageState": verdict.get("coverageState", "unknown"),
+                "crawledAs": verdict.get("crawledAs", "unknown"),
+                "lastCrawlTime": verdict.get("lastCrawlTime"),
+            })
+        except HTTPError as e:
+            inspected.append({"url": url, "verdict": f"error_{e.code}"})
+        except Exception as e:
+            inspected.append({"url": url, "verdict": f"error: {str(e)[:50]}"})
+
+    # Summarize
+    indexed = sum(1 for i in inspected if i.get("verdict") == "PASS")
+    not_indexed = sum(1 for i in inspected if i.get("verdict") != "PASS" and "error" not in str(i.get("verdict", "")))
+
+    emit({
+        "command": "submit-urls",
+        "site": site,
+        "sitemap_submit": sitemap_status,
+        "total_sitemap_urls": len(urls),
+        "inspected": len(inspected),
+        "indexed": indexed,
+        "not_indexed": not_indexed,
+        "details": inspected,
+    })
+
+
 # ---------------------------------------------------------------------------
 # CLI argument parser
 # ---------------------------------------------------------------------------
@@ -1020,6 +1164,11 @@ def build_parser():
     # status
     sp = sub.add_parser("status", help="Overall SEO health summary")
     sp.set_defaults(func=cmd_status)
+
+    # submit-urls
+    sp = sub.add_parser("submit-urls", help="Request Google to index URLs from sitemap")
+    sp.add_argument("--site", default=SITE_URL, help="Site URL (default: dbradwood.com)")
+    sp.set_defaults(func=cmd_submit_urls)
 
     return p
 

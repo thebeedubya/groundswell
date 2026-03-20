@@ -242,10 +242,24 @@ def cmd_approval(args):
     ]
     reply_markup = {"inline_keyboard": [buttons]}
 
+    # If --post-id provided, add tweet link to the approval card
+    card_text = args.text
+    if args.post_id:
+        # Extract target handle from text (look for @handle pattern)
+        handle = ""
+        import re
+        handle_match = re.search(r"@(\w+)", card_text)
+        if handle_match:
+            handle = handle_match.group(1)
+        tweet_url = f"https://x.com/{handle}/status/{args.post_id}" if handle else f"https://x.com/i/status/{args.post_id}"
+        card_text = f"{card_text}\n\nTweet: {tweet_url}"
+
+    import html as html_mod
+    safe_card = html_mod.escape(card_text)
     payload = {
         "chat_id": chat_id,
-        "text": f"\U0001f514 *Approval Required* (#{approval_id})\n\n{args.text}",
-        "parse_mode": "Markdown",
+        "text": f"\U0001f514 <b>Approval Required</b> (#{html_mod.escape(approval_id)})\n\n{safe_card}",
+        "parse_mode": "HTML",
         "reply_markup": reply_markup,
     }
     result = telegram_api(token, "sendMessage", payload)
@@ -253,6 +267,15 @@ def cmd_approval(args):
         fail(f"Telegram returned ok=false: {result.get('description', 'unknown')}")
 
     message_id = result["result"]["message_id"]
+
+    # Send draft text as a separate plain-text message for easy copy-paste
+    if args.draft:
+        draft_payload = {
+            "chat_id": chat_id,
+            "text": args.draft,
+            "reply_to_message_id": message_id,
+        }
+        telegram_api(token, "sendMessage", draft_payload)
 
     # Store in DB
     conn = get_db()
@@ -418,6 +441,8 @@ def build_parser():
     p.add_argument("--id", required=True, help="Unique approval request ID")
     p.add_argument("--text", required=True, help="Approval request description")
     p.add_argument("--options", required=True, help='JSON array of options (e.g. \'["approve","reject"]\')')
+    p.add_argument("--draft", default=None, help="Draft text to send as separate copy-pasteable message")
+    p.add_argument("--post-id", default=None, help="Tweet/post ID to generate a direct link")
 
     # check-approval
     p = sub.add_parser("check-approval", help="Check if an approval was answered")

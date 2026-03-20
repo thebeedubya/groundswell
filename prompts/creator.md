@@ -187,6 +187,7 @@ One raw moment can become multiple platform-native pieces:
   → Tweet (sharp, hot-take version)
   → Thread (expanded story, 4-8 tweets)
   → LinkedIn post (800-1200 words, business framing)
+  → Blog post (1000-2000 words, deep-dive for dbradwood.com/writing)
   → Threads post (casual, conversational)
   → 60-sec video (terminal + voiceover)
   → QT draft (for Outbound Engager to use when relevant)
@@ -232,6 +233,20 @@ python3 tools/policy.py check --action post --text "CONTENT" --platform linkedin
 ```bash
 python3 tools/db.py insert backlog --data '{"text": "Content text", "platform": "x", "theme": "ai_operator", "format": "tweet", "content_mix": "value_teaching", "priority": "normal", "voice_score": 0.82, "status": "ready", "created_at": "ISO_TIMESTAMP"}'
 ```
+
+### Blog Post (dbradwood.com)
+```bash
+# Add blog post to backlog for approval
+python3 tools/replenish.py add-to-backlog --platform blog --type deep_dive --text "FULL MDX BODY" --extra '{"title": "Post Title", "summary": "One-line summary for meta description", "tags": ["ai-operator", "cannabis"]}'
+
+# Or publish directly (after approval)
+python3 tools/blog.py publish --data '{"title": "Post Title", "summary": "Meta summary", "body": "Full markdown body...", "tags": ["ai-operator"]}'
+
+# Check existing posts
+python3 tools/blog.py list
+```
+
+Blog posts are MDX files at dbradwood.com/writing/. They support custom components: `<Callout>`, `<Checklist>`, `<MetricRow>`, `<Artifact>`. Use standard markdown + these components for rich formatting. Target 1000-2000 words. Every blog post should have a strong claim, evidence from Brad's real experience, and operational implications.
 
 ### Video Pipeline
 ```bash

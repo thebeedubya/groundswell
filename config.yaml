@@ -29,6 +29,14 @@ platforms:
     max_posts_per_day: 8
     max_replies_per_hour: 10
     max_replies_per_day: 40
+    # API RATE LIMITS — X Pay Per Use is 1,500 posts/month + 10K reads
+    # Budget: 50 posts/day max, 300 reads/day max
+    api_budget:
+      posts_per_day: 50
+      reads_per_day: 300
+      searches_per_day: 20
+      mentions_checks_per_day: 24    # once per hour
+      metrics_checks_per_day: 6      # every 4 hours
     link_in_reply: true      # Never put links in main tweet
     image_boost: true        # Attach screenshots when available
     # Posting windows (CT) — only post original content in these windows
@@ -56,21 +64,71 @@ schedule:
   timezone: "America/Chicago"
 
   tasks:
-    publisher_x:
-      agent: publisher
-      # Post at start of each window, not every 60 min
+    # --- Platform agents (via Marketing Manager) ---
+    marketing_manager:
+      agent: marketing_manager
+      # Runs at posting windows — routes content to platform agents
       daily_at: ["07:00", "08:00", "11:30", "12:30", "17:00"]
       jitter_minutes: 15
+      timeout_seconds: 180
+      enabled: true
+
+    inbound_x:
+      agent: x_agent
+      # Direct orchestrator→x_agent dispatch for mention checks (not via MM)
+      interval_minutes: 30
+      jitter_minutes: 5
       timeout_seconds: 120
       enabled: true
 
+    # --- RSS infrastructure ---
+    rss_fetch:
+      agent: rss_fetch
+      # Pure Python tool, zero Claude cost
+      interval_minutes: 30
+      jitter_minutes: 5
+      timeout_seconds: 60
+      enabled: true
+
+    rss_scout_tech:
+      agent: rss_scout_tech
+      # Score tech/AI RSS items 3x/day
+      daily_at: ["07:30", "12:00", "17:30"]
+      jitter_minutes: 10
+      timeout_seconds: 120
+      enabled: true
+
+    rss_scout_cannabis:
+      agent: rss_scout_cannabis
+      # Score cannabis RSS items 3x/day
+      daily_at: ["07:30", "12:00", "17:30"]
+      jitter_minutes: 10
+      timeout_seconds: 120
+      enabled: true
+
+    # --- X Scout (X-only monitoring, stripped of RSS) ---
+    x_scout:
+      agent: x_scout
+      # Tier 1 monitoring, X trend detection, competitive monitoring
+      daily_at: ["07:30", "12:00", "17:30"]
+      jitter_minutes: 10
+      timeout_seconds: 180
+      enabled: true
+
+    # --- Legacy agents (disabled — replaced by new architecture) ---
+    publisher_x:
+      agent: publisher
+      daily_at: ["07:00", "08:00", "11:30", "12:30", "17:00"]
+      jitter_minutes: 15
+      timeout_seconds: 120
+      enabled: false  # Replaced by marketing_manager → x_agent
+
     publisher_linkedin:
       agent: publisher
-      # Tues-Thurs mornings are peak. 2 slots max.
       daily_at: ["08:00", "12:00"]
       jitter_minutes: 15
       timeout_seconds: 120
-      enabled: true
+      enabled: false  # Replaced by marketing_manager → linkedin_agent
 
     publisher_threads:
       agent: publisher
@@ -81,24 +139,24 @@ schedule:
 
     outbound_engager:
       agent: outbound_engager
-      interval_minutes: 45
+      daily_at: ["07:30", "11:30", "14:00", "17:30"]
       jitter_minutes: 10
       timeout_seconds: 180
-      enabled: true
+      enabled: false  # Replaced by marketing_manager → x_agent/linkedin_agent
 
     inbound_engager:
       agent: inbound_engager
       interval_minutes: 30
       jitter_minutes: 5
       timeout_seconds: 120
-      enabled: true
+      enabled: false  # Replaced by inbound_x → x_agent
 
     scout:
       agent: scout
-      interval_minutes: 120
-      jitter_minutes: 30
+      daily_at: ["07:30", "12:00", "17:30"]
+      jitter_minutes: 10
       timeout_seconds: 180
-      enabled: true
+      enabled: false  # Replaced by x_scout + rss_scout_tech + rss_scout_cannabis
 
     analyst_snapshot:
       agent: analyst
@@ -118,6 +176,21 @@ schedule:
       agent: creator
       interval_minutes: 240
       jitter_minutes: 30
+      timeout_seconds: 300
+      enabled: true
+
+    diary:
+      agent: diary
+      daily_at: ["09:00"]
+      jitter_minutes: 5
+      timeout_seconds: 300
+      enabled: true
+
+    blog_publisher:
+      agent: blog_publisher
+      # Publish queued blog posts twice a week (Tues/Thurs mornings)
+      daily_at: ["08:00"]
+      jitter_minutes: 10
       timeout_seconds: 300
       enabled: true
 

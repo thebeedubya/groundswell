@@ -65,6 +65,26 @@ Then EXIT. Don't waste compute on empty cycles.
 
 For each due task, you will spawn the appropriate agent. Here's how:
 
+### Special handling: rss_fetch (Python tool, not Claude agent)
+
+If the due task is `rss_fetch`, run it directly as a Python tool — no Claude agent needed:
+
+```bash
+python3 tools/rss_fetch.py fetch
+```
+
+Log the result and mark the task complete. This costs zero Claude tokens.
+
+### Special handling: inbound_x
+
+If the due task is `inbound_x`, spawn the X Agent with task type `inbound_mentions`:
+
+```bash
+cat prompts/x_agent.md
+```
+
+Inject state with `task_type: inbound_mentions`. This bypasses Marketing Manager for speed — inbound mention checks run every 30 minutes and shouldn't wait for MM routing.
+
 ### Build the agent prompt
 
 For each task, read the agent's base prompt:
@@ -73,7 +93,7 @@ For each task, read the agent's base prompt:
 cat prompts/{agent}.md
 ```
 
-Where `{agent}` is the agent name from the task (e.g., `publisher`, `outbound_engager`, `creator`, `analyst`, `scout`, `inbound_engager`, `seo`).
+Where `{agent}` is the agent name from the task (e.g., `marketing_manager`, `x_agent`, `linkedin_agent`, `rss_scout_tech`, `rss_scout_cannabis`, `x_scout`, `creator`, `analyst`, `seo`).
 
 ### Inject state
 
@@ -95,10 +115,11 @@ Prepend the following state block to the agent's prompt before spawning:
 Use the Agent tool to spawn each agent. Pass the combined prompt (state block + agent prompt) as the instruction.
 
 **Parallelism rules:**
-- `publisher` and `outbound_engager` are independent — spawn in parallel if both are due
-- `creator` and `scout` are independent — spawn in parallel if both are due
-- `analyst` should run alone — its outputs may affect other agents' next cycle
-- `inbound_engager` can run in parallel with anything
+- `marketing_manager` runs alone — it spawns platform agents internally
+- `rss_scout_tech` and `rss_scout_cannabis` are independent — spawn in parallel
+- `x_scout`, `creator`, and `analyst` are independent of each other
+- `inbound_x` (x_agent with inbound task) can run in parallel with anything
+- `analyst` should run alone when its outputs may affect other agents' next cycle
 - Never spawn more than 3 agents simultaneously
 
 ### Handle agent results
@@ -129,18 +150,18 @@ Do NOT stop the cycle because one agent failed. Complete the remaining tasks.
 After dispatching all scheduled tasks, process pending signals from the state. Handle each signal type:
 
 ### HOT_TARGET
-A high-value account is active right now. Spawn `outbound_engager` immediately with the signal payload as context.
+A high-value account is active right now. Spawn `x_agent` with task type `outbound_engage` and the signal payload as context.
 
 ```bash
-cat prompts/outbound_engager.md
+cat prompts/x_agent.md
 ```
 Inject state + signal details, spawn via Agent tool.
 
 ### BREAKOUT_DETECTED
-A piece of content is gaining unexpected traction. Spawn `publisher` to amplify (quote-tweet, reply thread, etc.).
+A piece of content is gaining unexpected traction. Spawn `x_agent` with task type `outbound_post` to amplify (quote-tweet, reply thread, etc.).
 
 ```bash
-cat prompts/publisher.md
+cat prompts/x_agent.md
 ```
 Inject state + signal details including the breakout content reference.
 
@@ -153,10 +174,10 @@ cat prompts/creator.md
 Inject state + signal details including current queue depth.
 
 ### TIER1_ACTIVE
-A Tier 1 target (high-value relationship) is currently posting. Spawn `outbound_engager` with priority flag.
+A Tier 1 target (high-value relationship) is currently posting. Determine which platform and spawn the appropriate agent. For X activity, spawn `x_agent` with `outbound_engage` and priority flag. For LinkedIn activity, spawn `linkedin_agent` with `outbound_engage` and priority flag.
 
 ```bash
-cat prompts/outbound_engager.md
+cat prompts/x_agent.md    # or prompts/linkedin_agent.md based on platform
 ```
 Inject state + signal details with `priority: true`.
 
@@ -218,7 +239,7 @@ These are absolute rules. Never violate them.
 
    Then exit.
 
-6. **Brand safety RED restricts operations.** Under RED status, only `inbound_engager` (to respond to existing conversations) and `analyst` (to monitor) may run. All other agents are suppressed. Log suppressed tasks:
+6. **Brand safety RED restricts operations.** Under RED status, only `inbound_x` / `x_agent` with inbound task (to respond to existing conversations) and `analyst` (to monitor) may run. All other agents are suppressed. Log suppressed tasks:
 
    ```bash
    python3 tools/db.py log-event --agent orchestrator --type task_suppressed --details '{"task_id": "{id}", "agent": "{agent}", "reason": "brand_safety RED"}'

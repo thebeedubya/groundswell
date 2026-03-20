@@ -139,6 +139,11 @@ All tools are invoked as `python3 tools/<tool>.py <command> [args]`.
 | `tools/replenish.py` | `add-to-backlog --platform x --type native --text "..."` | Add content to posting backlog |
 | `tools/replenish.py` | `add-thread --platform x --texts '[...]'` | Add thread to backlog |
 | `tools/replenish.py` | `backlog-status` | Backlog health and days remaining |
+| `tools/rss_fetch.py` | `fetch` | Fetch all RSS feeds, dedup, store new items (pure Python, $0) |
+| `tools/rss_fetch.py` | `fetch --category cannabis` | Fetch only cannabis feeds |
+| `tools/rss_fetch.py` | `fetch --category tech_ai` | Fetch only tech/AI feeds |
+| `tools/rss_fetch.py` | `status` | RSS fetch statistics |
+| `tools/rss_fetch.py` | `unscored --category cannabis --limit 20` | List unscored items for scouts |
 | `tools/seo.py` | `audit --url URL` | Full page SEO audit (score + issues) |
 | `tools/seo.py` | `sitemap-check` | Verify sitemap.xml accessibility |
 | `tools/seo.py` | `internal-links --slug POST` | Suggest internal links for a blog post |
@@ -151,10 +156,14 @@ All tools are invoked as `python3 tools/<tool>.py <command> [args]`.
 | `tools/signal.py` | `emit --type SIGNAL_TYPE --data '{"key": "value"}'` | Emit a signal to the bus |
 | `tools/signal.py` | `check --type SIGNAL_TYPE` | Check for pending signals |
 | `tools/telegram.py` | `send --text "..."` | Send Telegram notification |
-| `tools/telegram.py` | `approval --id ID --text "..." --options '["approve","reject"]'` | Queue item for Brad's approval |
+| `tools/telegram.py` | `approval --id ID --text "..." --draft "copy-paste text" --post-id "POST_ID" --options '["approve","reject"]'` | Queue item for Brad's approval (draft sent as separate message, post-id generates tweet link) |
 | `tools/telegram.py` | `check-approval --id ID` | Check if Brad responded |
 | `tools/telegram.py` | `alert --level warning --text "..."` | Send severity-formatted alert |
 | `tools/telegram.py` | `briefing --data '{"followers": N, ...}'` | Send daily briefing |
+| `tools/blog.py` | `publish --data '{"title":"...","summary":"...","body":"...","tags":[...]}'` | Publish blog post to dbradwood.com |
+| `tools/blog.py` | `publish --data '...' --status draft` | Publish as draft |
+| `tools/blog.py` | `list` | List existing blog posts |
+| `tools/blog.py` | `check --slug SLUG` | Check if a post exists |
 | `tools/dashboard.py` | `serve [--port 8500]` | Start web dashboard |
 
 ---
@@ -172,6 +181,7 @@ All tables live in `data/groundswell.db` (SQLite, WAL mode).
 | `strategy_state` | Analyst-managed weights | key, value (JSON), version |
 | `tier_targets` | Engagement target list | handle, tier (1/2/3), platform, interaction_count |
 | `proof_stack` | Evidence portfolio | category, title, detail, evidence_path, tags |
+| `rss_items` | RSS feed items (fetched by rss_fetch.py) | feed_name, feed_category, title, url, score, scored_by |
 
 ---
 
@@ -233,16 +243,66 @@ Check via `python3 tools/policy.py status` before acting.
 
 ---
 
+## Agent Architecture
+
+Groundswell uses a layered agent architecture:
+
+### Strategic Layer
+| Agent | Role | Spawns |
+|-------|------|--------|
+| **Orchestrator** | Infrastructure: schedule, state, signals, dispatch | All agents |
+| **Marketing Manager** | Strategy: what to say, where, when. Routes content to platform agents | X Agent, LinkedIn Agent |
+
+### Platform Agents
+| Agent | Platform | Responsibilities |
+|-------|----------|-----------------|
+| **X Agent** (`x_agent`) | X (Twitter) | Post tweets/threads, outbound engagement (replies + QTs), inbound mention handling |
+| **LinkedIn Agent** (`linkedin_agent`) | LinkedIn | Post long-form content, LinkedIn comments, blog backlinking |
+
+### Intelligence Agents
+| Agent | Domain | Data Source |
+|-------|--------|------------|
+| **X Scout** (`x_scout`) | X-only monitoring | X API (search, timelines, trends) |
+| **RSS Scout Tech** (`rss_scout_tech`) | Tech/AI news scoring | SQLite `rss_items` table (fed by rss_fetch.py) |
+| **RSS Scout Cannabis** (`rss_scout_cannabis`) | Cannabis news scoring | SQLite `rss_items` table (fed by rss_fetch.py) |
+
+### Content & Analysis
+| Agent | Role |
+|-------|------|
+| **Creator** | Generate content, maintain backlog, video pipeline |
+| **Analyst** | Measure performance, update strategy weights |
+
+### Publishing & Utility
+| Agent | Role |
+|-------|------|
+| **Diary** | Daily diary generation and publishing |
+| **Blog Publisher** | Publish blog posts to dbradwood.com |
+| **SEO** | SEO audits and optimization |
+
+### Infrastructure (not Claude agents)
+| Tool | Role |
+|------|------|
+| `rss_fetch.py` | Fetch RSS feeds, dedup, write to SQLite. Pure Python, zero Claude cost. |
+| `policy.py` | Brand safety and content policy checks |
+
+### Dispatch Patterns
+- **Marketing Manager** routes content to platform agents during posting windows
+- **Inbound X** is dispatched directly by Orchestrator (not via MM) every 30 minutes for speed
+- **RSS fetch** runs as a Python tool invocation (not a Claude agent) every 30 minutes
+- **RSS Scouts** score what rss_fetch.py already fetched — they never fetch feeds themselves
+
+---
+
 ## Signal Types You May Encounter
 
 | Signal | Meaning | Who Cares |
 |--------|---------|-----------|
-| `HOT_TARGET` | High-value engagement opportunity detected | Outbound Engager |
-| `TIER1_ACTIVE` | A Tier 1 account just posted relevant content | Outbound Engager |
+| `HOT_TARGET` | High-value engagement opportunity detected | X Agent / LinkedIn Agent |
+| `TIER1_ACTIVE` | A Tier 1 account just posted relevant content | X Agent / LinkedIn Agent |
 | `DM_OPPORTUNITY` | Target hit 3-touch threshold | Brad (via Telegram) |
-| `RELATIONSHIP_OVERLOAD` | Too many pending conversations | Outbound reduces volume |
+| `RELATIONSHIP_OVERLOAD` | Too many pending conversations | X Agent reduces volume |
 | `API_BLOCKED` | Platform returned 403 | All agents check cooldowns |
-| `POST_SENT` | Publisher posted successfully | Triggers cross-platform relay |
+| `POST_SENT` | Platform agent posted successfully | Triggers cross-platform relay |
 | `STRATEGY_UPDATE` | Analyst updated weights | All agents reload weights |
 | `CONTENT_LOW` | Backlog below 5 items | Creator replenishes |
 | `NEWSJACK_READY` | Breaking news with Brad angle | Publisher fast-tracks |

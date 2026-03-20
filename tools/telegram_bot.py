@@ -52,6 +52,22 @@ def now_iso():
     return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
 
 
+def send_chat_action(token, chat_id, action="typing"):
+    """Send a chat action (typing indicator) to Telegram."""
+    data = json.dumps({"chat_id": chat_id, "action": action}).encode()
+    req = urllib.request.Request(
+        f"https://api.telegram.org/bot{token}/sendChatAction",
+        data=data,
+        headers={"Content-Type": "application/json"},
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(req) as resp:
+            return json.loads(resp.read())
+    except Exception:
+        pass
+
+
 def send_message(token, chat_id, text):
     data = json.dumps({"chat_id": chat_id, "text": text, "parse_mode": "Markdown"}).encode()
     req = urllib.request.Request(
@@ -371,7 +387,174 @@ def handle_message(text, conn):
         return cmd_help()
 
     # Everything else goes through Claude for a natural response
-    return agentic_response(original, conn)
+    return ("__typing__", original, conn)
+
+
+def _handle_diary_callback(action, key, conn):
+    """Handle diary entry approve/reject. Returns response string or None if not a diary key."""
+    if not key.startswith("diary-"):
+        return None
+
+    if action == "approve":
+        try:
+            result = subprocess.run(
+                ["python3", os.path.join(REPO_ROOT, "tools", "diary.py"), "approve", "--id", key],
+                capture_output=True, text=True, timeout=150,
+                env={**os.environ, "PATH": "/opt/homebrew/bin:" + os.environ.get("PATH", "")},
+            )
+            print(f"[telegram_bot] Diary approve: {result.stdout[:200]}", file=sys.stderr)
+            return f"✅ Diary approved & published: {key}"
+        except Exception as e:
+            print(f"[telegram_bot] Diary approve error: {e}", file=sys.stderr)
+            return f"⚠️ Diary approve failed: {e}"
+
+    elif action == "reject":
+        try:
+            result = subprocess.run(
+                ["python3", os.path.join(REPO_ROOT, "tools", "diary.py"),
+                 "reject", "--id", key, "--reason", "rejected via Telegram"],
+                capture_output=True, text=True, timeout=30,
+                env={**os.environ, "PATH": "/opt/homebrew/bin:" + os.environ.get("PATH", "")},
+            )
+            return f"❌ Diary rejected: {key}"
+        except Exception as e:
+            return f"⚠️ Diary reject failed: {e}"
+
+    return None
+
+
+def handle_callback(data, conn):
+    """Handle approval button callbacks."""
+    # Format: "approve:ACTION_KEY" or "reject:ACTION_KEY"
+    parts = data.split(":", 1)
+    if len(parts) < 2:
+        return f"⚠️ Unrecognized callback: {data}"
+
+    action = parts[0].lower()
+    key = parts[1]
+
+    # Check if this is a diary entry first
+    diary_result = _handle_diary_callback(action, key, conn)
+    if diary_result:
+        return diary_result
+
+    if action == "approve":
+        # Update pending action to approved
+        ts = now_iso()
+        cur = conn.execute(
+            "UPDATE pending_actions SET status='approved', completed_at=? WHERE idempotency_key=? AND status='pending'",
+            (ts, key),
+        )
+        if cur.rowcount == 0:
+            # Try partial match (key might be truncated in callback_data)
+            cur = conn.execute(
+                "UPDATE pending_actions SET status='approved', completed_at=? WHERE idempotency_key LIKE ? AND status='pending'",
+                (ts, f"%{key}%"),
+            )
+        conn.commit()
+
+        if cur.rowcount > 0:
+            # Get the action details to execute it
+            row = conn.execute(
+                "SELECT * FROM pending_actions WHERE idempotency_key LIKE ?",
+                (f"%{key}%",),
+            ).fetchone()
+            if row and row["payload"]:
+                try:
+                    payload = json.loads(row["payload"])
+                    # Execute the approved action
+                    execute_approved_action(row["action_type"], payload, conn)
+                except Exception as e:
+                    print(f"[telegram_bot] Execute error: {e}", file=sys.stderr)
+
+            return f"✅ Approved: {key[:40]}"
+        else:
+            return f"⚠️ Not found or already processed: {key[:40]}"
+
+    elif action == "reject":
+        ts = now_iso()
+        conn.execute(
+            "UPDATE pending_actions SET status='rejected', completed_at=? WHERE idempotency_key LIKE ? AND status='pending'",
+            (ts, f"%{key}%"),
+        )
+        conn.commit()
+        return f"❌ Rejected: {key[:40]}"
+
+    return f"⚠️ Unknown action: {action}"
+
+
+def _notify_manual_post(text, reply_to=None, quote_tweet_id=None):
+    """Send Brad two Telegram messages for manual posting (403 fallback).
+
+    Message 1: link to tap open in Twitter
+    Message 2: just the draft text (long-press to copy, paste in reply box)
+    """
+    env = load_env()
+    token = env.get("TELEGRAM_BOT_TOKEN", "")
+    chat_id = env.get("TELEGRAM_CHAT_ID", "")
+    if not token or not chat_id:
+        return
+
+    # Message 1: context + tappable link
+    if reply_to:
+        send_message(token, chat_id,
+                     f"✏️ Reply manually:\nhttps://x.com/i/status/{reply_to}")
+    elif quote_tweet_id:
+        send_message(token, chat_id,
+                     f"✏️ Quote manually:\nhttps://x.com/i/status/{quote_tweet_id}")
+
+    # Message 2: just the text, nothing else — easy to long-press → Copy
+    send_message(token, chat_id, text)
+
+
+def _check_forbidden(result_stdout, text, reply_to=None, quote_tweet_id=None):
+    """Check if post.py returned a 403 forbidden error. Returns True if handled."""
+    try:
+        data = json.loads(result_stdout)
+        if not data.get("ok") and data.get("error") == "forbidden":
+            print(f"[telegram_bot] 403 forbidden — surfacing for manual post", file=sys.stderr)
+            _notify_manual_post(text, reply_to=reply_to, quote_tweet_id=quote_tweet_id)
+            return True
+    except (json.JSONDecodeError, ValueError):
+        pass
+    return False
+
+
+def execute_approved_action(action_type, payload, conn):
+    """Execute an approved action — post the reply, QT, etc."""
+    if action_type in ("reply", "pending_reply"):
+        # Post the reply to X
+        text = payload.get("text") or payload.get("draft", "")
+        reply_to = payload.get("reply_to") or payload.get("tweet_id", "")
+        if text and reply_to:
+            try:
+                result = subprocess.run(
+                    ["python3", os.path.join(REPO_ROOT, "tools", "post.py"),
+                     "x", "--text", text, "--reply-to", str(reply_to)],
+                    capture_output=True, text=True, timeout=30,
+                    env={**os.environ, "PATH": "/opt/homebrew/bin:" + os.environ.get("PATH", "")},
+                )
+                if not _check_forbidden(result.stdout, text, reply_to=reply_to):
+                    print(f"[telegram_bot] Posted reply: {result.stdout[:100]}", file=sys.stderr)
+            except Exception as e:
+                print(f"[telegram_bot] Post error: {e}", file=sys.stderr)
+
+    elif action_type in ("post", "quote_tweet"):
+        text = payload.get("text") or payload.get("draft", "")
+        qt_id = payload.get("quote_tweet_id", "")
+        if text:
+            try:
+                cmd = ["python3", os.path.join(REPO_ROOT, "tools", "post.py"), "x", "--text", text]
+                if qt_id:
+                    cmd.extend(["--quote-tweet-id", str(qt_id)])
+                result = subprocess.run(
+                    cmd, capture_output=True, text=True, timeout=30,
+                    env={**os.environ, "PATH": "/opt/homebrew/bin:" + os.environ.get("PATH", "")},
+                )
+                if not _check_forbidden(result.stdout, text, quote_tweet_id=qt_id):
+                    print(f"[telegram_bot] Posted: {result.stdout[:100]}", file=sys.stderr)
+            except Exception as e:
+                print(f"[telegram_bot] Post error: {e}", file=sys.stderr)
 
 
 def serve():
@@ -397,6 +580,72 @@ def serve():
             for update in updates.get("result", []):
                 offset = update["update_id"] + 1
 
+                # Handle callback queries (approval buttons)
+                cb = update.get("callback_query")
+                if cb:
+                    cb_data = cb.get("data", "")
+                    cb_id = cb.get("id", "")
+                    sender_id = str(cb.get("from", {}).get("id", ""))
+
+                    if sender_id != chat_id:
+                        continue
+
+                    print(f"[telegram_bot] Callback: {cb_data}")
+
+                    cb_msg_id = cb.get("message", {}).get("message_id")
+                    cb_msg_text = cb.get("message", {}).get("text", "")
+
+                    # Process the approval/rejection
+                    conn = get_db()
+                    try:
+                        action_word = cb_data.split(":")[0].lower()
+                        result = handle_callback(cb_data, conn)
+                    finally:
+                        conn.close()
+
+                    # 1. Answer callback with popup toast
+                    try:
+                        toast = "✅ Approved!" if "approve" in action_word else "❌ Rejected"
+                        answer_data = json.dumps({
+                            "callback_query_id": cb_id,
+                            "text": toast,
+                            "show_alert": False,
+                        }).encode()
+                        req = urllib.request.Request(
+                            f"https://api.telegram.org/bot{token}/answerCallbackQuery",
+                            data=answer_data,
+                            headers={"Content-Type": "application/json"},
+                            method="POST",
+                        )
+                        urllib.request.urlopen(req)
+                    except Exception:
+                        pass
+
+                    # 2. Edit original message — remove buttons, add status
+                    if cb_msg_id:
+                        try:
+                            status_line = "\n\n✅ APPROVED" if "approve" in action_word else "\n\n❌ REJECTED"
+                            edit_data = json.dumps({
+                                "chat_id": chat_id,
+                                "message_id": cb_msg_id,
+                                "text": cb_msg_text + status_line,
+                                "reply_markup": json.dumps({"inline_keyboard": []}),
+                            }).encode()
+                            req = urllib.request.Request(
+                                f"https://api.telegram.org/bot{token}/editMessageText",
+                                data=edit_data,
+                                headers={"Content-Type": "application/json"},
+                                method="POST",
+                            )
+                            urllib.request.urlopen(req)
+                        except Exception:
+                            pass
+
+                    # 3. Send confirmation of what happened
+                    send_message(token, chat_id, result)
+                    continue
+
+                # Handle regular messages
                 msg = update.get("message", {})
                 text = msg.get("text", "")
                 sender_id = str(msg.get("chat", {}).get("id", ""))
@@ -412,7 +661,15 @@ def serve():
 
                 conn = get_db()
                 try:
-                    response = handle_message(text, conn)
+                    result = handle_message(text, conn)
+
+                    # If agentic response, show typing indicator first
+                    if isinstance(result, tuple) and result[0] == "__typing__":
+                        _, question, db_conn = result
+                        send_chat_action(token, chat_id, "typing")
+                        response = agentic_response(question, db_conn)
+                    else:
+                        response = result
                 finally:
                     conn.close()
 

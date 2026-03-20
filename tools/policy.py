@@ -133,10 +133,18 @@ def check_rate_limits(conn, config, agent="system"):
 
     count = 0
     if table_exists(conn, "events"):
+        # Only count actual actions (posts, replies, engagements) — not
+        # orchestrator bookkeeping (cycle_empty, cycle_complete, mention_check,
+        # follower_snapshot, seo_daily, content_created, etc.)
         row = conn.execute(
             """
             SELECT COUNT(*) as cnt FROM events
             WHERE timestamp > datetime('now', '-1 hour')
+              AND event_type IN (
+                  'POST_SENT', 'REPLY_SENT', 'ENGAGE_SENT',
+                  'post_sent', 'reply_sent', 'engage_sent',
+                  'engagement_sent', 'engagement_posted'
+              )
             """,
         ).fetchone()
         count = row["cnt"] if row else 0

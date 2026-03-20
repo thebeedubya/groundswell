@@ -272,6 +272,25 @@ CREATE TABLE IF NOT EXISTS intel_feed (
     created_at TEXT NOT NULL,
     expires_at TEXT
 );
+
+CREATE TABLE IF NOT EXISTS rss_items (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    feed_name TEXT NOT NULL,
+    feed_category TEXT NOT NULL,
+    title TEXT NOT NULL,
+    url TEXT NOT NULL UNIQUE,
+    summary TEXT,
+    published_at TEXT,
+    fetched_at TEXT NOT NULL,
+    scored BOOLEAN DEFAULT 0,
+    score REAL,
+    scored_by TEXT,
+    scored_at TEXT,
+    signal_emitted BOOLEAN DEFAULT 0
+);
+
+CREATE INDEX IF NOT EXISTS idx_rss_items_scored ON rss_items(scored, feed_category);
+CREATE INDEX IF NOT EXISTS idx_rss_items_fetched ON rss_items(fetched_at);
 """
 
 

@@ -52,6 +52,19 @@ The backlog (`data/backlog.json`) contains content items with metadata: platform
 
 If a backlog item contains a URL in the main text, extract it before posting and move it to the reply/comment step. This is a formatting change, not a meaning change — it's your job.
 
+### Blog-to-LinkedIn Backlink Strategy
+
+When a LinkedIn post was generated from a blog post on dbradwood.com (check backlog metadata for `source_blog_slug` or matching title in `tools/blog.py list`), ALWAYS add the blog URL as the first comment:
+
+```bash
+# Post the LinkedIn content
+python3 tools/post.py linkedin --text "LINKEDIN VERSION"
+# Then immediately add the blog link as first comment
+python3 tools/post.py linkedin --text "Full post with more depth: https://dbradwood.com/writing/SLUG" --reply-to POST_ID
+```
+
+This is critical for SEO — every LinkedIn post linking to dbradwood.com builds domain authority and drives Google to index the blog faster. The LinkedIn post is the teaser; the blog is the destination.
+
 ### How to Handle Images
 
 When a backlog item has `image_path` or when terminal screenshots are available in `data/videos/`, attach them. Images boost X reach by 2x. Always prefer posting with an image over text-only when one is available.

@@ -1,0 +1,133 @@
+# Groundswell RSS Feed Configuration
+# These feeds power the RSS Scout agents for intel gathering.
+
+cannabis:
+  - name: MJBizDaily
+    url: https://mjbizdaily.com/feed
+    signal: breaking news, financial, regulatory
+    priority: high
+
+  - name: Cannabis Business Times
+    url: https://www.cannabisbusinesstimes.com/rss
+    signal: cultivation, compliance, grower-focused
+    priority: high
+
+  - name: Marijuana Moment
+    url: https://www.marijuanamoment.net/feed
+    signal: politics, policy, science
+    priority: high
+
+  - name: New Cannabis Ventures
+    url: https://www.newcannabisventures.com/feed
+    signal: investment, company news, deals
+    priority: medium
+
+  - name: Green Market Report
+    url: https://www.greenmarketreport.com/feed
+    signal: financial, market analysis
+    priority: medium
+
+  - name: Hemp Industry Daily
+    url: https://hempindustrydaily.com/feed
+    signal: hemp B2B news
+    priority: low
+
+  - name: Ganjapreneur
+    url: https://www.ganjapreneur.com/feed
+    signal: business news
+    priority: low
+
+  - name: Cannabis Tech Today
+    url: https://cannatechtoday.com/feed
+    signal: technology solutions for cannabis
+    priority: medium
+
+tech_ai:
+  # Individual blogs — highest signal
+  - name: Simon Willison
+    url: https://simonwillison.net/atom/everything/
+    signal: LLM tooling, practical code, Python
+    priority: high
+
+  - name: Lilian Weng
+    url: https://lilianweng.github.io/index.xml
+    signal: agent theory, deep learning research
+    priority: high
+
+  - name: Chip Huyen
+    url: https://huyenchip.com/feed
+    signal: production ML systems, deployment
+    priority: high
+
+  - name: Hamel Husain
+    url: https://hamel.dev/blog/index.xml
+    signal: AI engineering, evals, production patterns
+    priority: high
+
+  - name: swyx / Latent.Space
+    url: https://swyx.substack.com/feed
+    signal: AI engineer perspectives, emerging patterns
+    priority: high
+
+  - name: Andrej Karpathy
+    url: https://karpathy.bearblog.dev/feed/
+    signal: deep learning theory
+    priority: high
+
+  - name: Ethan Mollick
+    url: https://oneusefulthing.org/feed
+    signal: AI + work implications, research
+    priority: high
+
+  # Company blogs
+  - name: OpenAI
+    url: https://openai.com/news/rss.xml
+    signal: model releases, research
+    priority: high
+
+  - name: Google DeepMind
+    url: https://deepmind.google/blog/rss.xml
+    signal: breakthrough research, agent systems
+    priority: medium
+
+  - name: Hugging Face
+    url: https://huggingface.co/blog/feed.xml
+    signal: open source models, community
+    priority: medium
+
+  - name: LangChain
+    url: https://blog.langchain.dev/feed
+    signal: framework updates, LLM patterns
+    priority: high
+
+  - name: Anthropic
+    url: https://raw.githubusercontent.com/Olshansk/rss-feeds/main/feeds/feed_anthropic_news.xml
+    signal: Claude releases, safety research
+    priority: high
+
+  # Research
+  - name: ArXiv cs.MA (Multi-Agent)
+    url: http://export.arxiv.org/rss/cs.MA
+    signal: multi-agent systems research papers
+    priority: medium
+
+  # Aggregators / daily pulse
+  - name: Hacker News
+    url: https://news.ycombinator.com/rss
+    signal: tech news, industry trends
+    priority: medium
+
+  - name: Ben's Bites
+    url: https://bensbites.substack.com/feed
+    signal: daily AI products and research
+    priority: medium
+
+  - name: TLDR AI
+    url: https://bullrich.dev/tldr-rss/ai
+    signal: daily AI news digest
+    priority: low
+
+  - name: Vercel
+    url: https://vercel.com/atom
+    signal: deployment, Next.js, infrastructure
+    priority: low

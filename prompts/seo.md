@@ -130,6 +130,12 @@ python3 tools/seo.py sitemap-check
 # Check current indexing status (needs Search Console API)
 python3 tools/seo.py index-status
 
+# Resubmit sitemap and inspect URL index status (run daily until fully indexed)
+python3 tools/seo.py submit-urls
+
+# After any new blog post, audit internal links and suggest cross-links
+python3 tools/seo.py internal-links --slug "new-post-slug"
+
 # Check keyword rankings
 python3 tools/seo.py rankings --keywords "Brad Wood,AI Operator,cannabis AI"
 

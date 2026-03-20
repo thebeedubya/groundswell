@@ -192,6 +192,39 @@ Automatically log milestones to `proof_stack`:
 - Tier 1 engagements received
 - Any media mentions detected
 
+## Content Recycling — Evergreen Requeue
+
+High-performing content should be reposted after it ages out of feeds. This is free distribution — zero creation cost, proven engagement.
+
+**Daily (during analyst_snapshot):**
+1. Query `content_genome` for posts older than 30 days with `performance_multiple >= 2.0` (performed 2x+ above baseline).
+2. Check that the post hasn't been recycled already (look for a `recycled_from` field in backlog or an event log).
+3. For each candidate, check if the content is still relevant (no stale news hooks, no time-sensitive references).
+4. Re-queue to backlog with:
+   - `platform`: same as original
+   - `type`: "recycle"
+   - `priority`: 5 (normal, not urgent)
+   - `text`: original text, optionally with a fresh hook ("This is still true 6 weeks later:")
+   - `recycled_from`: original post_id
+5. **Max 2 recycles per day.** Recycled content should never exceed 10% of daily output.
+
+**Weekly (during analyst_weekly):**
+- Surface the top 5 all-time performing posts to Brad in the growth audit.
+- Flag any that haven't been recycled yet and are eligible (>30 days old).
+- Track recycle performance vs original — do recycled posts maintain engagement?
+
+**What makes content recyclable:**
+- Evergreen topic (frameworks, receipts, operational insights)
+- No time-sensitive hook ("today", "this week", specific news event)
+- Engagement was organic (not boosted by a lucky viral reply thread)
+- Voice score >= 0.8 (only recycle the best)
+
+**What's NOT recyclable:**
+- Newsjacks (stale by definition)
+- Correction posts
+- Conversation-specific content (replies, thread continuations)
+- Anything with a time reference that would look wrong reposted
+
 ## Quality Gates
 
 1. **Never update strategy_state without logging the change.** Every weight update includes: previous value, new value, reason, data points that drove the decision, strategy_version.

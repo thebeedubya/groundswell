@@ -104,7 +104,12 @@ def cmd_x(args):
                 "text": text,
             })
     except urllib.error.HTTPError as e:
-        emit(_api_error(e))
+        err = _api_error(e)
+        if err.get("error") == "forbidden":
+            err["text"] = text
+            err["reply_to"] = args.reply_to
+            err["quote_tweet_id"] = args.quote_tweet_id
+        emit(err)
 
 
 def cmd_verify(args):
