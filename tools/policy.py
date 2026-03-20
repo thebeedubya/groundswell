@@ -496,6 +496,192 @@ def run_status(config, conn):
 
 
 # ---------------------------------------------------------------------------
+# Failure Recording — the generic feedback loop
+# ---------------------------------------------------------------------------
+
+# Maps failure categories to automatic responses.
+# cooldown_minutes: how long to pause the platform (0 = no cooldown)
+# backoff_multiplier: multiply cooldown on repeat failures (from config)
+# escalate: whether to alert Brad via Telegram
+FAILURE_RESPONSES = {
+    "RATE_LIMITED": {
+        "cooldown_minutes": 15,
+        "escalate": False,
+        "description": "Platform rate limit hit",
+    },
+    "PLATFORM_COOLDOWN": {
+        "cooldown_minutes": 30,
+        "escalate": False,
+        "description": "Platform returned 403 — temporarily blocked",
+    },
+    "AUTH_EXPIRED": {
+        "cooldown_minutes": 60,
+        "escalate": True,
+        "description": "Authentication failed — needs human intervention",
+    },
+    "API_ERROR": {
+        "cooldown_minutes": 5,
+        "escalate": False,
+        "description": "Platform API error (5xx)",
+    },
+    "NETWORK_ERROR": {
+        "cooldown_minutes": 2,
+        "escalate": False,
+        "description": "Network timeout or connection failure",
+    },
+    "CONTENT_BLOCKED": {
+        "cooldown_minutes": 0,  # No platform cooldown — content-specific
+        "escalate": False,
+        "description": "Content failed policy filter",
+    },
+    "DUPLICATE_CONTENT": {
+        "cooldown_minutes": 0,
+        "escalate": False,
+        "description": "Duplicate content detected",
+    },
+}
+
+
+def record_failure(conn, config, category, platform, agent, detail=""):
+    """Record a failure and auto-apply the appropriate system response.
+
+    This is the generic feedback loop entry point. Every agent should call
+    this when ANY failure occurs. The system evaluates the category and:
+    1. Logs the failure event
+    2. Sets a platform cooldown if appropriate
+    3. Applies backoff multiplier for repeat failures
+    4. Emits signals for escalation-worthy failures
+    5. Returns the response so the agent knows what happened
+
+    Usage:
+        python3 tools/policy.py record-failure --category RATE_LIMITED --platform x --agent publisher --detail "429 on post"
+    """
+    ts = utcnow_iso()
+    category = category.upper()
+    response = FAILURE_RESPONSES.get(category)
+
+    if not response:
+        # Unknown category — log it but don't auto-respond
+        conn.execute(
+            "INSERT INTO events (timestamp, agent, event_type, details) VALUES (?, ?, ?, ?)",
+            (ts, agent, f"failure_{category.lower()}", json.dumps({
+                "category": category, "platform": platform, "detail": detail,
+                "auto_response": "none — unknown category",
+            })),
+        )
+        conn.commit()
+        return {
+            "ok": True,
+            "category": category,
+            "action_taken": "logged_only",
+            "cooldown_set": False,
+            "escalated": False,
+        }
+
+    # Check for repeat failures (backoff multiplier)
+    recent_same = 0
+    if table_exists(conn, "events"):
+        row = conn.execute(
+            "SELECT COUNT(*) as cnt FROM events WHERE agent = ? "
+            "AND event_type LIKE ? AND timestamp > datetime('now', '-4 hours')",
+            (agent, f"%{category.lower()}%"),
+        ).fetchone()
+        recent_same = row["cnt"] if row else 0
+
+    # Calculate cooldown with backoff
+    base_cooldown = response["cooldown_minutes"]
+    backoff_mult = (
+        config.get("policy", {})
+        .get("rate_limits", {})
+        .get("backoff_multiplier", 2.0)
+    )
+    max_backoff = (
+        config.get("policy", {})
+        .get("rate_limits", {})
+        .get("max_backoff_minutes", 60)
+    )
+
+    if recent_same > 0 and base_cooldown > 0:
+        # Exponential backoff: base * multiplier^(repeat_count - 1), capped
+        cooldown_minutes = min(
+            base_cooldown * (backoff_mult ** min(recent_same, 5)),
+            max_backoff,
+        )
+    else:
+        cooldown_minutes = base_cooldown
+
+    # 1. Log the failure event
+    event_details = {
+        "category": category,
+        "platform": platform,
+        "detail": detail,
+        "cooldown_minutes": cooldown_minutes,
+        "repeat_count": recent_same + 1,
+        "escalated": response["escalate"],
+    }
+    conn.execute(
+        "INSERT INTO events (timestamp, agent, event_type, failure_category, details) VALUES (?, ?, ?, ?, ?)",
+        (ts, agent, f"failure_{category.lower()}", category, json.dumps(event_details)),
+    )
+
+    # 2. Set platform cooldown if appropriate
+    cooldown_set = False
+    if cooldown_minutes > 0 and platform:
+        cooldown_until = datetime.now(timezone.utc) + timedelta(minutes=cooldown_minutes)
+        cooldown_until_iso = cooldown_until.strftime("%Y-%m-%dT%H:%M:%SZ")
+
+        conn.execute(
+            "INSERT INTO platform_cooldowns (platform, cooldown_until, reason, set_by) "
+            "VALUES (?, ?, ?, ?) "
+            "ON CONFLICT(platform) DO UPDATE SET cooldown_until = excluded.cooldown_until, "
+            "reason = excluded.reason, set_by = excluded.set_by",
+            (platform, cooldown_until_iso,
+             f"auto: {response['description']} (repeat #{recent_same + 1})",
+             f"policy/{agent}"),
+        )
+        cooldown_set = True
+
+    # 3. Emit signal for escalation
+    escalated = False
+    if response["escalate"]:
+        if table_exists(conn, "signals"):
+            conn.execute(
+                "INSERT INTO signals (type, source_agent, data, priority, created_at) "
+                "VALUES (?, ?, ?, ?, ?)",
+                ("API_BLOCKED", agent, json.dumps({
+                    "category": category,
+                    "platform": platform,
+                    "detail": detail,
+                    "cooldown_until": cooldown_until_iso if cooldown_set else None,
+                    "repeat_count": recent_same + 1,
+                }), 1, ts),  # priority 1 = highest
+            )
+        escalated = True
+
+    # 4. For CONTENT_BLOCKED, dead-letter the content (no cooldown, just skip it)
+    if category == "CONTENT_BLOCKED" and detail:
+        conn.execute(
+            "INSERT INTO events (timestamp, agent, event_type, details) VALUES (?, ?, ?, ?)",
+            (ts, agent, "content_dead_lettered", json.dumps({
+                "reason": "content_blocked",
+                "detail": detail,
+            })),
+        )
+
+    conn.commit()
+
+    return {
+        "ok": True,
+        "category": category,
+        "action_taken": response["description"],
+        "cooldown_set": cooldown_set,
+        "cooldown_minutes": cooldown_minutes if cooldown_set else 0,
+        "repeat_count": recent_same + 1,
+        "escalated": escalated,
+    }
+
+
+# ---------------------------------------------------------------------------
 # CLI
 # ---------------------------------------------------------------------------
 
@@ -529,6 +715,18 @@ def build_parser():
     # status
     sub.add_parser("status", help="Show current policy state summary")
 
+    # record-failure
+    fail_parser = sub.add_parser("record-failure", help="Record a failure and auto-apply system response")
+    fail_parser.add_argument(
+        "--category",
+        required=True,
+        choices=[k.lower() for k in FAILURE_RESPONSES.keys()] + [k for k in FAILURE_RESPONSES.keys()],
+        help="Failure category: RATE_LIMITED, PLATFORM_COOLDOWN, AUTH_EXPIRED, API_ERROR, NETWORK_ERROR, CONTENT_BLOCKED, DUPLICATE_CONTENT",
+    )
+    fail_parser.add_argument("--platform", required=True, help="Platform where failure occurred")
+    fail_parser.add_argument("--agent", required=True, help="Agent that encountered the failure")
+    fail_parser.add_argument("--detail", default="", help="Human-readable detail about the failure")
+
     return parser
 
 
@@ -555,6 +753,15 @@ def main():
             )
         elif args.command == "status":
             result = run_status(config, conn)
+        elif args.command == "record-failure":
+            result = record_failure(
+                conn=conn,
+                config=config,
+                category=args.category.upper(),
+                platform=args.platform,
+                agent=args.agent,
+                detail=args.detail,
+            )
         else:
             fatal(f"Unknown command: {args.command}")
             return  # unreachable

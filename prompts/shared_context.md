@@ -327,20 +327,28 @@ Groundswell uses a layered agent architecture:
 
 ---
 
-## Failure Handling
+## Failure Handling — Closed Feedback Loop
 
-When a tool call fails, classify and respond:
+When a tool call fails, **classify it and call `record-failure`**. This is mandatory. The system auto-applies the right response (cooldown, backoff, escalation) and learns from the failure.
 
-| Category | Symptom | Action |
-|----------|---------|--------|
-| RATE_LIMITED | HTTP 429 | Retry after 5min backoff |
-| NETWORK_ERROR | Timeout/connection | Retry after 2min backoff |
-| AUTH_EXPIRED | HTTP 401 | Escalate immediately, no retry |
-| PLATFORM_COOLDOWN | HTTP 403 | Log durable cooldown, no retry |
-| CONTENT_BLOCKED | Filter flags | Dead letter, needs Brad's edit |
-| DUPLICATE_CONTENT | Dedup match | Skip silently |
-| INVALID_TARGET | Deleted tweet | Skip, log |
-| API_ERROR | HTTP 5xx | Retry after 5min backoff |
-| UNKNOWN | Uncaught error | Retry once, then dead letter |
+```bash
+python3 tools/policy.py record-failure --category CATEGORY --platform PLATFORM --agent AGENT --detail "what happened"
+```
+
+| Category | Symptom | Auto-Response |
+|----------|---------|---------------|
+| RATE_LIMITED | HTTP 429 | 15min cooldown, backoff on repeat |
+| NETWORK_ERROR | Timeout/connection | 2min cooldown, backoff on repeat |
+| AUTH_EXPIRED | HTTP 401 | 60min cooldown + escalate to Brad |
+| PLATFORM_COOLDOWN | HTTP 403 | 30min cooldown, backoff on repeat |
+| CONTENT_BLOCKED | Filter flags | Dead letter, no cooldown |
+| DUPLICATE_CONTENT | Dedup match | Skip silently, no cooldown |
+| API_ERROR | HTTP 5xx | 5min cooldown, backoff on repeat |
+
+**Repeat failures auto-escalate.** Each repeat within 4 hours multiplies the cooldown (2x, 4x, 8x...) up to the configured max (60 min). The system self-throttles proportionally to how broken things are.
+
+**AUTH_EXPIRED auto-escalates to Brad** via Telegram (API_BLOCKED signal, priority 1).
+
+**NEVER just log a failure and move on.** Always call `record-failure`. The system cannot learn from failures it doesn't know about.
 
 Max 2 retries (3 total attempts). After that, dead letter it and move on.
