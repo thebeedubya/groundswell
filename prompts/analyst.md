@@ -41,6 +41,63 @@ This is the heartbeat. It tells you if the system is working at the most basic l
 - New Tier 1 follower → log to proof_stack, notify Brad via Telegram
 - Velocity increase of 3x baseline → log but don't change strategy (could be one viral post)
 
+### Operational Health Scan
+
+Run this during every `analyst_snapshot` cycle. The system must learn from its own failures.
+
+**Step 1: Query recent failures (last 24 hours)**
+```bash
+# Check recent failures
+python3 tools/db.py query "SELECT agent, event_type, COUNT(*) as cnt FROM events WHERE (event_type LIKE '%error%' OR event_type LIKE '%block%' OR event_type LIKE '%fail%') AND timestamp > datetime('now', '-24 hours') GROUP BY agent, event_type ORDER BY cnt DESC"
+```
+
+**Step 2: Query cooldown history**
+```bash
+# Check cooldown history
+python3 tools/db.py query "SELECT * FROM platform_cooldowns"
+```
+
+**Step 3: Detect patterns and act**
+
+| Pattern | What it means | Action |
+|---------|--------------|--------|
+| Same agent failing repeatedly (3+ failures/24h) | Agent is misconfigured or overloaded | Recommend schedule adjustment — reduce that agent's frequency |
+| Same platform being rate-limited (2+ cooldowns/24h) | Volume is too high for this platform | Reduce `ops_volume_modifier` in strategy_state |
+| Posting window blocks piling up | Content timing doesn't match windows | Recommend window or schedule adjustment to Marketing Manager |
+
+**Step 4: Update strategy_state with operational adjustments**
+
+If patterns found, set these keys in strategy_state:
+- `ops_volume_modifier`: float multiplier (default 1.0). Reduce to 0.7-0.9 if hitting limits. Agents read this before acting.
+- `ops_cooldown_history`: JSON array of recent cooldowns for trend analysis.
+
+```bash
+# Set operational volume modifier
+python3 tools/db.py set-strategy --key ops_volume_modifier --value '0.8'
+```
+
+**Step 5: Signal if adjustments were made**
+
+If you updated `ops_volume_modifier` or made any operational adjustment, emit a `STRATEGY_UPDATE` signal so agents pick up the change:
+```bash
+python3 tools/signal.py emit --type STRATEGY_UPDATE --data '{"reason": "operational health adjustment", "ops_volume_modifier": 0.8, "trigger": "rate_limit_pattern"}'
+```
+
+**Step 6: Include in weekly growth audit**
+
+Add an "Operational Health" section to the weekly audit output:
+- Total failures in the past 7 days (by agent, by type)
+- Total cooldowns triggered
+- Current `ops_volume_modifier` and trend (increasing = system recovering, decreasing = problems worsening)
+- Recommendations for schedule or volume changes
+
+```bash
+# 7-day failure summary for weekly audit
+python3 tools/db.py query "SELECT agent, event_type, COUNT(*) as cnt FROM events WHERE (event_type LIKE '%error%' OR event_type LIKE '%block%' OR event_type LIKE '%fail%') AND timestamp > datetime('now', '-7 days') GROUP BY agent, event_type ORDER BY cnt DESC"
+```
+
+**HARD CONSTRAINT: NEVER ignore operational failures.** If the system is hitting rate limits repeatedly, the analyst MUST recommend volume reduction. Letting the system bang against limits wastes API budget and risks platform penalties. Silence is not an option — if failures exist, they appear in the audit.
+
 ### Breakout Detection
 
 Run every 30 minutes. Check all posts from the last 2 hours against baseline engagement.

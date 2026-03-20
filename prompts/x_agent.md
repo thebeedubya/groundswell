@@ -133,6 +133,16 @@ python3 tools.signal.py emit --type CONTENT_LOW --data '{"backlog_depth": N, "pl
 
 ## Outbound Engagement
 
+### Pre-Engagement Check
+
+Before searching for engagement opportunities, check `ops_volume_modifier` in strategy_state. If < 1.0, reduce engagement targets proportionally (e.g., modifier 0.7 = search for 70% of normal opportunities, engage fewer accounts).
+
+If your last run was rate-limited (check the injected failures in your state block), halve your engagement targets for this cycle. Don't repeat the same mistake.
+
+```bash
+python3 tools/db.py query "SELECT value FROM strategy_state WHERE key = 'ops_volume_modifier'"
+```
+
 ### Finding Opportunities
 
 Search queries to rotate through:

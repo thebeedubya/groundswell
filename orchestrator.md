@@ -108,7 +108,11 @@ Prepend the following state block to the agent's prompt before spawning:
 - Pending signals for you: {signals filtered to this agent, or "none"}
 - Task context: {task payload and task_type that triggered this invocation}
 - Recent events: {last 5 events from this specific agent, extracted from recent_events}
+- Recent failures: {query events table for this agent's errors/blocks/failures in last 24h — if any, summarize: "Rate limited 2h ago (125/30 actions). Reduce volume." If none, say "none"}
+- Active cooldowns: {any platform_cooldowns currently active for platforms this agent uses}
 ```
+
+When injecting failures, parse the details JSON and write a human-readable summary. The agent should understand WHAT failed and WHY, not see raw JSON. For example: "Rate limited 2h ago (125/30 actions). Reduce volume." or "Platform cooldown on X until 14:30 UTC (auto: rate limit exceeded)."
 
 ### Spawn the agent
 

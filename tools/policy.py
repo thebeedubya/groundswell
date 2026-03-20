@@ -18,7 +18,7 @@ import json
 import os
 import sqlite3
 import sys
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from _common import (
     CONFIG_PATH,
@@ -119,7 +119,7 @@ def check_platform_cooldown(conn, platform):
     return None, reasons, []
 
 
-def check_rate_limits(conn, config, agent="system"):
+def check_rate_limits(conn, config, agent="system", platform=None):
     """Count events in the last hour and compare to configured limit."""
     reasons = []
     warnings = []
@@ -152,6 +152,42 @@ def check_rate_limits(conn, config, agent="system"):
     if count >= max_actions:
         decision = "BLOCK"
         reasons.append(f"rate_limit_exceeded: {count}/{max_actions} actions this hour")
+
+        # Auto-set platform cooldown so subsequent cycles skip this platform
+        if platform:
+            cooldown_minutes = (
+                config.get("policy", {})
+                .get("rate_limits", {})
+                .get("cooldown_after_error_minutes", 15)
+            )
+            cooldown_until = datetime.now(timezone.utc)
+            cooldown_until = cooldown_until + timedelta(minutes=cooldown_minutes)
+            cooldown_until_iso = cooldown_until.strftime("%Y-%m-%dT%H:%M:%SZ")
+
+            # Ensure platform_cooldowns table exists
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS platform_cooldowns (
+                    platform TEXT PRIMARY KEY,
+                    cooldown_until TEXT NOT NULL,
+                    reason TEXT,
+                    set_by TEXT
+                )
+                """
+            )
+            conn.execute(
+                """
+                INSERT INTO platform_cooldowns (platform, cooldown_until, reason, set_by)
+                VALUES (?, ?, ?, ?)
+                ON CONFLICT(platform) DO UPDATE SET
+                    cooldown_until = excluded.cooldown_until,
+                    reason = excluded.reason,
+                    set_by = excluded.set_by
+                """,
+                (platform, cooldown_until_iso, "auto: rate limit exceeded", "policy"),
+            )
+            conn.commit()
+
     elif count >= int(max_actions * 0.9):
         warnings.append(
             f"approaching_rate_limit: {count}/{max_actions} actions this hour"
@@ -358,7 +394,7 @@ def run_checks(action, text, target, platform, config, conn):
     all_warnings.extend(warnings)
 
     # 3. Rate Limits
-    decision, reasons, warnings, _ = check_rate_limits(conn, config)
+    decision, reasons, warnings, _ = check_rate_limits(conn, config, platform=platform)
     final_decision = merge_decision(final_decision, decision)
     all_reasons.extend(reasons)
     all_warnings.extend(warnings)

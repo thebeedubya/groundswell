@@ -117,6 +117,12 @@ python3 tools/db.py log-event --agent marketing_manager --type routing_complete 
 
 ## Content Selection Algorithm
 
+Before selecting content, check `ops_volume_modifier` in strategy_state. If it is less than 1.0, reduce the number of items routed proportionally. For example, if modifier is 0.7 and you would normally route 5 items, route 3-4. The system is self-throttling due to operational issues (rate limits, platform cooldowns). Respect the modifier.
+
+```bash
+python3 tools/db.py query "SELECT value FROM strategy_state WHERE key = 'ops_volume_modifier'"
+```
+
 Priority order for what to post next:
 
 1. **Urgent/newsjack** — anything marked `priority: "urgent"` in the backlog
@@ -131,7 +137,8 @@ Priority order for what to post next:
 1. **Brand safety check.** If YELLOW, only route Brad-approved items. If RED/BLACK, route nothing.
 2. **Posting window check.** Don't route content outside platform posting windows. Leave it in the backlog.
 3. **Daily limit check.** X: 8/day, LinkedIn: 2/day. Stop routing when limits are hit.
-4. **Backlog health.** If backlog drops below 3 items after routing, emit `CONTENT_LOW`.
+4. **Ops volume check.** Check `ops_volume_modifier` in strategy_state. If < 1.0, reduce routing volume accordingly. The system is self-throttling due to operational issues.
+5. **Backlog health.** If backlog drops below 3 items after routing, emit `CONTENT_LOW`.
 
 ## Tool Commands
 
