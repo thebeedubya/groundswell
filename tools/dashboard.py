@@ -1,6 +1,9 @@
 #!/usr/bin/env python3
 """
-Groundswell Dashboard — local web UI for approvals and status monitoring.
+Groundswell Dashboard v2 — operational command center.
+
+Modern light-theme dashboard with Tailwind CSS, Alpine.js, and bento grid layout.
+Three-layer information hierarchy: Glance → Scan → Drill.
 
 Usage:
     python3 tools/dashboard.py serve [--port 8500]
@@ -13,15 +16,18 @@ import os
 import sqlite3
 import sys
 import urllib.parse
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from http.server import HTTPServer, BaseHTTPRequestHandler
 
-# ---------------------------------------------------------------------------
-# Paths
-# ---------------------------------------------------------------------------
-
-REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-DB_PATH = os.path.join(REPO_ROOT, "data", "groundswell.db")
+from _common import (
+    DB_PATH,
+    CONFIG_PATH,
+    DATA_DIR,
+    now_iso,
+    get_db,
+    rows_to_list,
+    load_config,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -35,19 +41,305 @@ def get_conn():
     return conn
 
 
-def now_iso():
-    return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
-
-
-def rows_to_list(rows):
-    return [dict(r) for r in rows]
-
-
 # ---------------------------------------------------------------------------
-# Data queries
+# Data Layer — all dashboard query functions
 # ---------------------------------------------------------------------------
+
+def get_agent_grid(conn):
+    """For each ENABLED scheduled task: agent, task, last_run, last_result,
+    next_due, overdue flag, today's event count for that agent."""
+    now = now_iso()
+    today_prefix = datetime.now(timezone.utc).strftime("%Y-%m-%dT")
+
+    rows = conn.execute(
+        "SELECT * FROM schedule WHERE enabled = 1 ORDER BY next_due ASC"
+    ).fetchall()
+
+    agents = []
+    for r in rows:
+        agent_name = r["agent"]
+        event_count = conn.execute(
+            "SELECT COUNT(*) as cnt FROM events WHERE agent = ? AND timestamp >= ?",
+            (agent_name, today_prefix),
+        ).fetchone()["cnt"]
+
+        agents.append({
+            "agent": agent_name,
+            "task": r["task"],
+            "last_run": r["last_run"],
+            "last_result": r["last_result"],
+            "next_due": r["next_due"],
+            "overdue": bool(r["next_due"] and r["next_due"] < now),
+            "today_count": event_count,
+        })
+
+    return agents
+
+
+def get_attention_items(conn):
+    """Items needing human attention: recent errors, overdue tasks,
+    brand safety != GREEN."""
+    now = now_iso()
+    one_day_ago = (datetime.now(timezone.utc) - timedelta(hours=24)).isoformat().replace("+00:00", "Z")
+    items = []
+
+    # Errors in last 24h
+    error_rows = conn.execute(
+        "SELECT * FROM events WHERE timestamp >= ? "
+        "AND (event_type LIKE '%error%' OR event_type LIKE '%block%' OR event_type LIKE '%fail%') "
+        "ORDER BY id DESC",
+        (one_day_ago,),
+    ).fetchall()
+    for r in error_rows:
+        items.append({
+            "type": "error",
+            "message": f"[{r['agent']}] {r['event_type']}: {r['details'] or ''}",
+            "severity": "high",
+            "timestamp": r["timestamp"],
+        })
+
+    # Overdue tasks
+    overdue_rows = conn.execute(
+        "SELECT * FROM schedule WHERE enabled = 1 AND next_due IS NOT NULL AND next_due < ?",
+        (now,),
+    ).fetchall()
+    for r in overdue_rows:
+        items.append({
+            "type": "overdue",
+            "message": f"Task '{r['task']}' ({r['agent']}) overdue since {r['next_due']}",
+            "severity": "medium",
+            "timestamp": r["next_due"],
+        })
+
+    # Brand safety
+    row = conn.execute(
+        "SELECT value, updated_at FROM strategy_state WHERE key = 'brand_safety_color'"
+    ).fetchone()
+    if row:
+        try:
+            color = json.loads(row["value"])
+        except (json.JSONDecodeError, TypeError):
+            color = row["value"]
+        if color != "GREEN":
+            items.append({
+                "type": "brand_safety",
+                "message": f"Brand safety is {color}",
+                "severity": "high" if color in ("RED", "BLACK") else "medium",
+                "timestamp": row["updated_at"],
+            })
+
+    return items
+
+
+def get_intel_feed(conn, limit=20):
+    """Recent intel_feed items plus unacted count."""
+    rows = conn.execute(
+        "SELECT id, category, headline, detail, relevance_score, acted_on, "
+        "source_agent, source_url, created_at "
+        "FROM intel_feed ORDER BY id DESC LIMIT ?",
+        (limit,),
+    ).fetchall()
+
+    unacted_count = conn.execute(
+        "SELECT COUNT(*) as cnt FROM intel_feed WHERE acted_on = 0"
+    ).fetchone()["cnt"]
+
+    return {
+        "items": rows_to_list(rows),
+        "unacted_count": unacted_count,
+    }
+
+
+def get_backlog_status():
+    """Read data/backlog.json. Count items by platform, by status, total ready."""
+    backlog_path = os.path.join(DATA_DIR, "backlog.json")
+    try:
+        with open(backlog_path, "r") as f:
+            items = json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        return {"by_platform": {}, "by_status": {}, "total_ready": 0, "total": 0}
+
+    by_platform = {}
+    by_status = {}
+    total_ready = 0
+
+    for item in items:
+        plat = item.get("platform", "unknown")
+        status = item.get("status", "unknown")
+        by_platform[plat] = by_platform.get(plat, 0) + 1
+        by_status[status] = by_status.get(status, 0) + 1
+        if status == "ready":
+            total_ready += 1
+
+    return {
+        "by_platform": by_platform,
+        "by_status": by_status,
+        "total_ready": total_ready,
+        "total": len(items),
+    }
+
+
+def get_api_budget(conn):
+    """Today's API calls by call_type, this week total, plus config limits."""
+    today_prefix = datetime.now(timezone.utc).strftime("%Y-%m-%dT")
+    week_ago = (datetime.now(timezone.utc) - timedelta(days=7)).isoformat().replace("+00:00", "Z")
+
+    today_rows = conn.execute(
+        "SELECT call_type, COUNT(*) as cnt FROM api_usage "
+        "WHERE created_at >= ? GROUP BY call_type",
+        (today_prefix,),
+    ).fetchall()
+
+    today_reads = 0
+    today_writes = 0
+    for r in today_rows:
+        ct = r["call_type"].lower()
+        if ct in ("read", "search", "mentions_check", "metrics_check", "get"):
+            today_reads += r["cnt"]
+        else:
+            today_writes += r["cnt"]
+
+    week_total = conn.execute(
+        "SELECT COUNT(*) as cnt FROM api_usage WHERE created_at >= ?",
+        (week_ago,),
+    ).fetchone()["cnt"]
+
+    limits = {"reads_per_day": 300, "posts_per_day": 50}
+    try:
+        cfg = load_config()
+        api_budget = cfg.get("platforms", {}).get("x", {}).get("api_budget", {})
+        if api_budget:
+            limits["reads_per_day"] = api_budget.get("reads_per_day", 300)
+            limits["posts_per_day"] = api_budget.get("posts_per_day", 50)
+    except (SystemExit, Exception):
+        pass
+
+    return {
+        "today": {"reads": today_reads, "writes": today_writes},
+        "week_total": week_total,
+        "limits": limits,
+    }
+
+
+def get_rss_health(conn):
+    """RSS items: total, unscored, scored, by category, latest fetch time."""
+    total = conn.execute("SELECT COUNT(*) as cnt FROM rss_items").fetchone()["cnt"]
+    unscored = conn.execute(
+        "SELECT COUNT(*) as cnt FROM rss_items WHERE scored = 0"
+    ).fetchone()["cnt"]
+    scored = conn.execute(
+        "SELECT COUNT(*) as cnt FROM rss_items WHERE scored = 1"
+    ).fetchone()["cnt"]
+
+    cat_rows = conn.execute(
+        "SELECT feed_category, COUNT(*) as cnt, "
+        "SUM(CASE WHEN scored = 1 THEN 1 ELSE 0 END) as scored_cnt "
+        "FROM rss_items GROUP BY feed_category"
+    ).fetchall()
+    by_category = {
+        r["feed_category"]: {"total": r["cnt"], "scored": r["scored_cnt"]}
+        for r in cat_rows
+    }
+
+    latest_row = conn.execute(
+        "SELECT MAX(fetched_at) as latest FROM rss_items"
+    ).fetchone()
+    latest_fetch = latest_row["latest"] if latest_row else None
+
+    return {
+        "total": total,
+        "unscored": unscored,
+        "scored": scored,
+        "by_category": by_category,
+        "latest_fetch": latest_fetch,
+    }
+
+
+def get_activity_feed(conn, limit=30):
+    """Recent events ordered by id DESC. Parse details JSON where possible."""
+    rows = conn.execute(
+        "SELECT * FROM events ORDER BY id DESC LIMIT ?", (limit,)
+    ).fetchall()
+
+    result = []
+    for r in rows:
+        d = dict(r)
+        if d.get("details"):
+            try:
+                d["details"] = json.loads(d["details"])
+            except (json.JSONDecodeError, TypeError):
+                pass
+        result.append(d)
+
+    return result
+
+
+def get_schedule_status(conn):
+    """All schedule rows with computed overdue flag."""
+    now = now_iso()
+    rows = conn.execute(
+        "SELECT * FROM schedule ORDER BY next_due ASC"
+    ).fetchall()
+
+    result = []
+    for r in rows:
+        d = dict(r)
+        d["overdue"] = bool(d.get("next_due") and d["next_due"] < now and d.get("enabled"))
+        result.append(d)
+
+    return result
+
+
+def get_posting_history(conn, days=7):
+    """Post counts per day for the last N days, for sparkline rendering."""
+    result = []
+    now_dt = datetime.now(timezone.utc)
+
+    for i in range(days - 1, -1, -1):
+        day = now_dt - timedelta(days=i)
+        date_str = day.strftime("%Y-%m-%d")
+        prefix = day.strftime("%Y-%m-%dT")
+        next_prefix = (day + timedelta(days=1)).strftime("%Y-%m-%dT")
+
+        count = conn.execute(
+            "SELECT COUNT(*) as cnt FROM events "
+            "WHERE event_type LIKE '%post%' AND timestamp >= ? AND timestamp < ?",
+            (prefix, next_prefix),
+        ).fetchone()["cnt"]
+
+        result.append({"date": date_str, "count": count})
+
+    return result
+
+
+def get_telegram_stats(conn):
+    """Stats from telegram_approvals table."""
+    try:
+        total = conn.execute(
+            "SELECT COUNT(*) as cnt FROM telegram_approvals"
+        ).fetchone()["cnt"]
+        approved = conn.execute(
+            "SELECT COUNT(*) as cnt FROM telegram_approvals WHERE decision = 'approve'"
+        ).fetchone()["cnt"]
+        rejected = conn.execute(
+            "SELECT COUNT(*) as cnt FROM telegram_approvals WHERE decision = 'reject'"
+        ).fetchone()["cnt"]
+        no_decision = conn.execute(
+            "SELECT COUNT(*) as cnt FROM telegram_approvals WHERE decision IS NULL"
+        ).fetchone()["cnt"]
+    except sqlite3.OperationalError:
+        return {"total": 0, "approved": 0, "rejected": 0, "no_decision": 0}
+
+    return {
+        "total": total,
+        "approved": approved,
+        "rejected": rejected,
+        "no_decision": no_decision,
+    }
+
 
 def get_brand_safety(conn):
+    """Brand safety color and update time."""
     row = conn.execute(
         "SELECT value, updated_at FROM strategy_state WHERE key = 'brand_safety_color'"
     ).fetchone()
@@ -61,6 +353,7 @@ def get_brand_safety(conn):
 
 
 def get_trust_phase(conn):
+    """Current trust phase from strategy_state."""
     row = conn.execute(
         "SELECT value FROM strategy_state WHERE key = 'trust_phase'"
     ).fetchone()
@@ -72,46 +365,14 @@ def get_trust_phase(conn):
     return "A"
 
 
-def get_pending_approvals(conn):
-    rows = conn.execute(
-        "SELECT * FROM pending_actions WHERE status = 'pending' ORDER BY created_at ASC"
-    ).fetchall()
-    return rows_to_list(rows)
-
-
-def get_recent_events(conn, limit=20):
-    rows = conn.execute(
-        "SELECT * FROM events ORDER BY id DESC LIMIT ?", (limit,)
-    ).fetchall()
-    return rows_to_list(rows)
-
-
-def get_schedule(conn):
-    rows = conn.execute(
-        "SELECT * FROM schedule ORDER BY next_due ASC"
-    ).fetchall()
-    return rows_to_list(rows)
-
-
-def get_pending_signals(conn):
-    ts = now_iso()
-    rows = conn.execute(
-        "SELECT * FROM signals WHERE consumed_at IS NULL "
-        "AND (expires_at IS NULL OR expires_at > ?) "
-        "ORDER BY priority ASC, id ASC",
-        (ts,),
-    ).fetchall()
-    return rows_to_list(rows)
-
-
 def get_quick_stats(conn):
-    today = datetime.now(timezone.utc).strftime("%Y-%m-%dT")
-    from datetime import timedelta
+    """Quick stats: posts today, actions this hour, pending signals/approvals."""
+    today_prefix = datetime.now(timezone.utc).strftime("%Y-%m-%dT")
     one_hour_ago = (datetime.now(timezone.utc) - timedelta(hours=1)).isoformat().replace("+00:00", "Z")
 
     posts_today = conn.execute(
         "SELECT COUNT(*) as cnt FROM events WHERE event_type LIKE '%post%' AND timestamp >= ?",
-        (today,),
+        (today_prefix,),
     ).fetchone()["cnt"]
 
     actions_hour = conn.execute(
@@ -135,22 +396,28 @@ def get_quick_stats(conn):
     }
 
 
-def get_full_state(conn):
-    safety = get_brand_safety(conn)
+def get_full_dashboard_state(conn):
+    """Combined dict with all dashboard data."""
     return {
-        "brand_safety": safety,
+        "brand_safety": get_brand_safety(conn),
         "trust_phase": get_trust_phase(conn),
-        "approvals": get_pending_approvals(conn),
-        "events": get_recent_events(conn),
-        "schedule": get_schedule(conn),
-        "signals": get_pending_signals(conn),
+        "agents": get_agent_grid(conn),
+        "attention": get_attention_items(conn),
+        "intel": get_intel_feed(conn),
+        "backlog": get_backlog_status(),
+        "api_budget": get_api_budget(conn),
+        "rss_health": get_rss_health(conn),
+        "activity": get_activity_feed(conn),
+        "schedule": get_schedule_status(conn),
+        "posting_history": get_posting_history(conn),
+        "telegram_stats": get_telegram_stats(conn),
         "stats": get_quick_stats(conn),
         "timestamp": now_iso(),
     }
 
 
 # ---------------------------------------------------------------------------
-# HTML template
+# HTML Template
 # ---------------------------------------------------------------------------
 
 HTML_PAGE = r"""<!DOCTYPE html>
@@ -159,429 +426,648 @@ HTML_PAGE = r"""<!DOCTYPE html>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Groundswell Dashboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.tailwindcss.com"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3/dist/cdn.min.js"></script>
+<script>
+tailwind.config = {
+  theme: {
+    extend: {
+      fontFamily: { sans: ['Inter', 'system-ui', 'sans-serif'] },
+    }
+  }
+}
+</script>
 <style>
-* { margin: 0; padding: 0; box-sizing: border-box; }
-body {
-    background: #0d1117;
-    color: #c9d1d9;
-    font-family: 'SF Mono', 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
-    font-size: 14px;
-    line-height: 1.5;
-    padding: 16px;
-}
-h1 {
-    color: #3fb950;
-    font-size: 20px;
-    margin-bottom: 4px;
-}
-h2 {
-    color: #8b949e;
-    font-size: 14px;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 1px;
-    margin-bottom: 8px;
-    padding-bottom: 4px;
-    border-bottom: 1px solid #21262d;
-}
-.header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 16px;
-    padding-bottom: 12px;
-    border-bottom: 1px solid #21262d;
-}
-.header-right {
-    text-align: right;
-    font-size: 12px;
-    color: #8b949e;
-}
-.grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 16px;
-}
-@media (max-width: 900px) {
-    .grid { grid-template-columns: 1fr; }
-}
-.card {
-    background: #161b22;
-    border: 1px solid #21262d;
-    border-radius: 6px;
-    padding: 16px;
-}
-.card.full-width {
-    grid-column: 1 / -1;
-}
-.banner {
-    display: flex;
-    align-items: center;
-    gap: 16px;
-    padding: 12px 16px;
-    background: #161b22;
-    border: 1px solid #21262d;
-    border-radius: 6px;
-    margin-bottom: 16px;
-}
-.safety-dot {
-    width: 16px;
-    height: 16px;
-    border-radius: 50%;
-    flex-shrink: 0;
-    box-shadow: 0 0 8px currentColor;
-}
-.safety-GREEN { background: #3fb950; color: #3fb950; }
-.safety-YELLOW { background: #d29922; color: #d29922; }
-.safety-RED { background: #f85149; color: #f85149; }
-.safety-BLACK { background: #484f58; color: #484f58; }
-.stats-row {
-    display: flex;
-    gap: 16px;
-    margin-bottom: 16px;
-}
-.stat-box {
-    background: #161b22;
-    border: 1px solid #21262d;
-    border-radius: 6px;
-    padding: 12px 16px;
-    flex: 1;
-    text-align: center;
-}
-.stat-value {
-    font-size: 28px;
-    font-weight: 700;
-    color: #3fb950;
-}
-.stat-label {
-    font-size: 11px;
-    color: #8b949e;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-}
-table {
-    width: 100%;
-    border-collapse: collapse;
-    font-size: 13px;
-}
-th {
-    text-align: left;
-    color: #8b949e;
-    font-weight: 600;
-    padding: 6px 8px;
-    border-bottom: 1px solid #21262d;
-    font-size: 11px;
-    text-transform: uppercase;
-}
-td {
-    padding: 6px 8px;
-    border-bottom: 1px solid #21262d;
-    max-width: 300px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
-tr:hover { background: #1c2128; }
-.btn {
-    padding: 4px 12px;
-    border: 1px solid #30363d;
-    border-radius: 4px;
-    background: #21262d;
-    color: #c9d1d9;
-    cursor: pointer;
-    font-family: inherit;
-    font-size: 12px;
-    margin-right: 4px;
-}
-.btn:hover { background: #30363d; }
-.btn-approve { border-color: #3fb950; color: #3fb950; }
-.btn-approve:hover { background: #238636; color: #fff; }
-.btn-reject { border-color: #f85149; color: #f85149; }
-.btn-reject:hover { background: #da3633; color: #fff; }
-.btn-kill { border-color: #f85149; color: #f85149; }
-.btn-kill:hover { background: #da3633; color: #fff; }
-.btn-resume { border-color: #3fb950; color: #3fb950; }
-.btn-resume:hover { background: #238636; color: #fff; }
-.empty { color: #484f58; font-style: italic; padding: 12px 0; }
-.tag {
-    display: inline-block;
-    padding: 2px 6px;
-    border-radius: 3px;
-    font-size: 11px;
-    font-weight: 600;
-}
-.tag-enabled { background: #0d4429; color: #3fb950; }
-.tag-disabled { background: #3d1f17; color: #f85149; }
-.priority-high { color: #f85149; }
-.priority-med { color: #d29922; }
-.priority-low { color: #8b949e; }
-.actions-bar {
-    display: flex;
-    gap: 8px;
-    margin-bottom: 16px;
-}
+  [x-cloak] { display: none !important; }
+  .custom-scroll::-webkit-scrollbar { width: 4px; }
+  .custom-scroll::-webkit-scrollbar-track { background: transparent; }
+  .custom-scroll::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 2px; }
+  .custom-scroll::-webkit-scrollbar-thumb:hover { background: #9ca3af; }
 </style>
 </head>
-<body>
+<body class="bg-gray-50 font-sans text-gray-900 antialiased" x-data="dashboard()" x-init="init()">
 
-<div class="header">
-    <div>
-        <h1>GROUNDSWELL</h1>
-        <span style="color: #8b949e; font-size: 12px;">Multi-Agent Social Growth Engine</span>
+<!-- TOP BAR -->
+<header class="sticky top-0 z-50 bg-white/80 backdrop-blur-md border-b border-gray-200">
+  <div class="max-w-[1440px] mx-auto px-4 sm:px-6 lg:px-8 h-14 flex items-center justify-between">
+    <div class="flex items-center gap-3">
+      <h1 class="text-base font-bold tracking-widest text-gray-900">GROUNDSWELL</h1>
+      <span class="hidden sm:inline text-xs text-gray-400 font-medium">Operations</span>
     </div>
-    <div class="header-right">
-        <div id="last-updated">Loading...</div>
-        <div class="actions-bar" style="margin-top: 8px; margin-bottom: 0;">
-            <button class="btn btn-kill" onclick="killSwitch()">KILL SWITCH</button>
-            <button class="btn btn-resume" onclick="resumeSystem()">RESUME</button>
+    <div class="flex items-center gap-4">
+      <template x-if="systemStatus === 'critical'">
+        <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-red-50 text-red-700 ring-1 ring-red-200">
+          <span class="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse"></span> Critical
+        </span>
+      </template>
+      <template x-if="systemStatus === 'warning'">
+        <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-50 text-amber-700 ring-1 ring-amber-200">
+          <span class="w-1.5 h-1.5 rounded-full bg-amber-500"></span> Needs Attention
+        </span>
+      </template>
+      <template x-if="systemStatus === 'ok'">
+        <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200">
+          <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span> All Clear
+        </span>
+      </template>
+      <span class="text-xs text-gray-400" x-text="lastUpdated"></span>
+      <div class="flex items-center gap-1.5">
+        <button @click="killSwitch()"
+          class="px-3 py-1.5 text-xs font-medium rounded-lg border border-red-200 text-red-600 hover:bg-red-50 transition-colors">
+          Kill
+        </button>
+        <button @click="resumeSystem()"
+          class="px-3 py-1.5 text-xs font-medium rounded-lg border border-emerald-200 text-emerald-600 hover:bg-emerald-50 transition-colors">
+          Resume
+        </button>
+      </div>
+    </div>
+  </div>
+</header>
+
+<main class="max-w-[1440px] mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
+
+<!-- LAYER 1: THE GLANCE -->
+
+<!-- Agent Health Grid -->
+<section>
+  <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-3">
+    <template x-for="agent in agents" :key="agent.task">
+      <div class="bg-white border border-gray-200 rounded-xl p-3.5 shadow-sm hover:shadow transition-shadow">
+        <div class="flex items-center justify-between mb-1.5">
+          <span class="text-sm font-semibold text-gray-900 truncate" x-text="formatAgentName(agent.task)"></span>
+          <span class="w-2 h-2 rounded-full flex-shrink-0"
+            :class="agentDotColor(agent)"></span>
         </div>
+        <div class="flex items-center justify-between">
+          <span class="text-xs text-gray-400" x-text="relTime(agent.last_run)"></span>
+          <span class="text-xs font-medium text-gray-500" x-text="agent.today_count + ' today'"></span>
+        </div>
+      </div>
+    </template>
+  </div>
+</section>
+
+<!-- Attention Banner -->
+<template x-if="attention.length > 0">
+  <div x-data="{ expanded: false }"
+    class="rounded-xl border px-4 py-3 shadow-sm"
+    :class="hasError ? 'bg-red-50 border-red-200' : 'bg-amber-50 border-amber-200'">
+    <button @click="expanded = !expanded" class="w-full flex items-center justify-between">
+      <div class="flex items-center gap-2">
+        <svg class="w-4 h-4" :class="hasError ? 'text-red-500' : 'text-amber-500'" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
+        </svg>
+        <span class="text-sm font-semibold" :class="hasError ? 'text-red-800' : 'text-amber-800'"
+          x-text="attention.length + ' item' + (attention.length !== 1 ? 's' : '') + ' need' + (attention.length === 1 ? 's' : '') + ' attention'"></span>
+      </div>
+      <svg class="w-4 h-4 text-gray-400 transition-transform" :class="expanded && 'rotate-180'" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
+      </svg>
+    </button>
+    <div x-show="expanded" x-cloak x-transition class="mt-3 space-y-1.5">
+      <template x-for="item in attention" :key="item.timestamp + item.message">
+        <div class="flex items-start gap-2 text-sm">
+          <span class="mt-0.5 w-1.5 h-1.5 rounded-full flex-shrink-0"
+            :class="item.severity === 'high' ? 'bg-red-500' : 'bg-amber-500'"></span>
+          <span :class="hasError ? 'text-red-700' : 'text-amber-700'" x-text="item.message"></span>
+          <span class="ml-auto text-xs text-gray-400 flex-shrink-0" x-text="relTime(item.timestamp)"></span>
+        </div>
+      </template>
     </div>
-</div>
+  </div>
+</template>
 
-<div id="banner" class="banner">
-    <div id="safety-dot" class="safety-dot safety-GREEN"></div>
-    <div>
-        <span id="safety-label" style="font-weight: 700;">GREEN</span>
-        <span style="color: #8b949e; margin: 0 8px;">|</span>
-        <span style="color: #8b949e;">Trust Phase:</span>
-        <span id="trust-phase" style="font-weight: 700;">A</span>
+<!-- LAYER 2: THE SCAN -->
+
+<!-- Stats Row -->
+<section class="grid grid-cols-2 lg:grid-cols-4 gap-3">
+  <div class="bg-white border border-gray-200 rounded-xl p-4 shadow-sm">
+    <div class="flex items-center justify-between mb-1">
+      <span class="text-xs font-medium text-gray-500 uppercase tracking-wide">Posts Today</span>
+      <div id="spark-posts" class="h-6 w-16"></div>
     </div>
-</div>
-
-<div class="stats-row" id="stats-row">
-    <div class="stat-box"><div class="stat-value" id="stat-posts">-</div><div class="stat-label">Posts Today</div></div>
-    <div class="stat-box"><div class="stat-value" id="stat-actions">-</div><div class="stat-label">Actions / Hour</div></div>
-    <div class="stat-box"><div class="stat-value" id="stat-signals">-</div><div class="stat-label">Pending Signals</div></div>
-    <div class="stat-box"><div class="stat-value" id="stat-approvals">-</div><div class="stat-label">Pending Approvals</div></div>
-</div>
-
-<div class="grid">
-
-    <div class="card full-width">
-        <h2>Pending Approvals</h2>
-        <div id="approvals-content"><div class="empty">Loading...</div></div>
+    <span class="text-2xl font-bold text-gray-900" x-text="stats.posts_today ?? '-'"></span>
+  </div>
+  <div class="bg-white border border-gray-200 rounded-xl p-4 shadow-sm">
+    <div class="flex items-center justify-between mb-1">
+      <span class="text-xs font-medium text-gray-500 uppercase tracking-wide">Actions / Hour</span>
     </div>
-
-    <div class="card">
-        <h2>Recent Activity</h2>
-        <div id="events-content"><div class="empty">Loading...</div></div>
+    <span class="text-2xl font-bold text-gray-900" x-text="stats.actions_this_hour ?? '-'"></span>
+  </div>
+  <div class="bg-white border border-gray-200 rounded-xl p-4 shadow-sm">
+    <div class="flex items-center justify-between mb-1">
+      <span class="text-xs font-medium text-gray-500 uppercase tracking-wide">Pending Signals</span>
     </div>
-
-    <div class="card">
-        <h2>Signals Queue</h2>
-        <div id="signals-content"><div class="empty">Loading...</div></div>
+    <span class="text-2xl font-bold text-gray-900" x-text="stats.pending_signals ?? '-'"></span>
+  </div>
+  <div class="bg-white border border-gray-200 rounded-xl p-4 shadow-sm">
+    <div class="flex items-center justify-between mb-1">
+      <span class="text-xs font-medium text-gray-500 uppercase tracking-wide">API Calls Today</span>
     </div>
+    <span class="text-2xl font-bold text-gray-900" x-text="(apibudget.today?.reads ?? 0) + (apibudget.today?.writes ?? 0)"></span>
+  </div>
+</section>
 
-    <div class="card full-width">
-        <h2>Schedule</h2>
-        <div id="schedule-content"><div class="empty">Loading...</div></div>
+<!-- Intel Feed + Content Pipeline -->
+<section class="grid grid-cols-1 lg:grid-cols-3 gap-3">
+  <!-- Intel Feed -->
+  <div class="lg:col-span-2 bg-white border border-gray-200 rounded-xl shadow-sm flex flex-col" style="max-height: 420px;">
+    <div class="px-5 pt-4 pb-3 border-b border-gray-100 flex items-center justify-between">
+      <h2 class="text-sm font-semibold text-gray-900 uppercase tracking-wide">Intel Feed</h2>
+      <span class="text-xs text-gray-400" x-text="(intel.unacted_count ?? 0) + ' unacted'"></span>
     </div>
+    <div class="overflow-y-auto custom-scroll flex-1 divide-y divide-gray-100">
+      <template x-if="!intel.items || intel.items.length === 0">
+        <div class="px-5 py-8 text-center text-sm text-gray-400 italic">No intel items</div>
+      </template>
+      <template x-for="item in (intel.items || [])" :key="item.id">
+        <div class="px-5 py-3 flex items-start gap-3 hover:bg-gray-50/50 transition-colors"
+          :class="!item.acted_on && 'border-l-2 border-l-indigo-400'">
+          <div class="flex-1 min-w-0">
+            <div class="flex items-center gap-2 mb-1">
+              <span class="inline-flex px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wider"
+                :class="categoryColor(item.category)"
+                x-text="item.category || 'general'"></span>
+              <span class="text-xs text-gray-400" x-text="relTime(item.created_at)"></span>
+            </div>
+            <p class="text-sm font-medium text-gray-800 leading-snug truncate" x-text="item.headline"></p>
+            <div class="mt-1.5 flex items-center gap-3">
+              <div class="flex-1 h-1 bg-gray-100 rounded-full overflow-hidden max-w-[120px]">
+                <div class="h-full bg-indigo-500 rounded-full" :style="'width:' + ((item.relevance_score || 0) * 100) + '%'"></div>
+              </div>
+              <span class="text-[11px] text-gray-400" x-text="item.source_agent || ''"></span>
+            </div>
+          </div>
+        </div>
+      </template>
+    </div>
+  </div>
 
-</div>
+  <!-- Content Pipeline -->
+  <div class="bg-white border border-gray-200 rounded-xl shadow-sm p-5">
+    <h2 class="text-sm font-semibold text-gray-900 uppercase tracking-wide mb-4">Content Pipeline</h2>
+    <div class="text-center mb-5">
+      <span class="text-4xl font-bold text-gray-900" x-text="backlog.total_ready ?? 0"></span>
+      <p class="text-xs text-gray-400 mt-0.5">Ready to publish</p>
+    </div>
+    <div class="space-y-3">
+      <template x-for="[platform, count] in Object.entries(backlog.by_platform || {})" :key="platform">
+        <div>
+          <div class="flex items-center justify-between mb-1">
+            <span class="text-xs font-medium text-gray-600 uppercase" x-text="platform"></span>
+            <span class="text-xs font-semibold text-gray-900" x-text="count"></span>
+          </div>
+          <div class="h-2 bg-gray-100 rounded-full overflow-hidden">
+            <div class="h-full rounded-full bg-indigo-500 transition-all duration-500"
+              :style="'width:' + Math.min(100, (count / Math.max(...Object.values(backlog.by_platform || {1:1}))) * 100) + '%'"></div>
+          </div>
+        </div>
+      </template>
+    </div>
+    <div class="mt-5 pt-4 border-t border-gray-100 grid grid-cols-3 gap-2 text-center">
+      <div>
+        <span class="text-lg font-bold text-gray-900" x-text="backlog.by_status?.ready ?? 0"></span>
+        <p class="text-[10px] text-gray-400 uppercase">Ready</p>
+      </div>
+      <div>
+        <span class="text-lg font-bold text-gray-900" x-text="backlog.by_status?.posted ?? 0"></span>
+        <p class="text-[10px] text-gray-400 uppercase">Posted</p>
+      </div>
+      <div>
+        <span class="text-lg font-bold text-gray-900" x-text="backlog.by_status?.dead_letter ?? 0"></span>
+        <p class="text-[10px] text-gray-400 uppercase">Dead</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- API Budget + RSS Health -->
+<section class="grid grid-cols-1 lg:grid-cols-2 gap-3">
+  <!-- API Budget -->
+  <div class="bg-white border border-gray-200 rounded-xl shadow-sm p-5">
+    <div class="flex items-center justify-between mb-4">
+      <h2 class="text-sm font-semibold text-gray-900 uppercase tracking-wide">API Budget</h2>
+      <span class="text-xs text-gray-400" x-text="'Week: ' + (apibudget.week_total ?? 0) + ' calls'"></span>
+    </div>
+    <div class="space-y-4">
+      <div>
+        <div class="flex items-center justify-between mb-1.5">
+          <span class="text-xs font-medium text-gray-600">Reads</span>
+          <span class="text-xs text-gray-500">
+            <span class="font-semibold text-gray-900" x-text="apibudget.today?.reads ?? 0"></span>
+            / <span x-text="apibudget.limits?.reads_per_day ?? 300"></span>
+          </span>
+        </div>
+        <div class="h-2.5 bg-gray-100 rounded-full overflow-hidden">
+          <div class="h-full rounded-full transition-all duration-500"
+            :class="budgetBarColor(apibudget.today?.reads, apibudget.limits?.reads_per_day)"
+            :style="'width:' + Math.min(100, ((apibudget.today?.reads ?? 0) / (apibudget.limits?.reads_per_day || 300)) * 100) + '%'"></div>
+        </div>
+      </div>
+      <div>
+        <div class="flex items-center justify-between mb-1.5">
+          <span class="text-xs font-medium text-gray-600">Writes</span>
+          <span class="text-xs text-gray-500">
+            <span class="font-semibold text-gray-900" x-text="apibudget.today?.writes ?? 0"></span>
+            / <span x-text="apibudget.limits?.posts_per_day ?? 50"></span>
+          </span>
+        </div>
+        <div class="h-2.5 bg-gray-100 rounded-full overflow-hidden">
+          <div class="h-full rounded-full transition-all duration-500"
+            :class="budgetBarColor(apibudget.today?.writes, apibudget.limits?.posts_per_day)"
+            :style="'width:' + Math.min(100, ((apibudget.today?.writes ?? 0) / (apibudget.limits?.posts_per_day || 50)) * 100) + '%'"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- RSS Health -->
+  <div class="bg-white border border-gray-200 rounded-xl shadow-sm p-5">
+    <div class="flex items-center justify-between mb-4">
+      <h2 class="text-sm font-semibold text-gray-900 uppercase tracking-wide">RSS Health</h2>
+      <span class="text-xs text-gray-400" x-text="'Fetched ' + relTime(rss.latest_fetch)"></span>
+    </div>
+    <div class="flex items-center gap-6">
+      <div class="relative w-24 h-24 flex-shrink-0">
+        <svg class="w-24 h-24 -rotate-90" viewBox="0 0 36 36">
+          <circle cx="18" cy="18" r="15.5" fill="none" stroke="#f3f4f6" stroke-width="3"></circle>
+          <circle cx="18" cy="18" r="15.5" fill="none" stroke="#6366f1" stroke-width="3" stroke-linecap="round"
+            :stroke-dasharray="scoredPct * 97.39 / 100 + ' ' + 97.39"
+            class="transition-all duration-700"></circle>
+        </svg>
+        <div class="absolute inset-0 flex items-center justify-center">
+          <span class="text-lg font-bold text-gray-900" x-text="scoredPct + '%'"></span>
+        </div>
+      </div>
+      <div class="space-y-2 flex-1">
+        <div class="flex justify-between">
+          <span class="text-xs text-gray-500">Total Items</span>
+          <span class="text-sm font-semibold text-gray-900" x-text="rss.total ?? 0"></span>
+        </div>
+        <div class="flex justify-between">
+          <span class="text-xs text-gray-500">Scored</span>
+          <span class="text-sm font-semibold text-emerald-600" x-text="rss.scored ?? 0"></span>
+        </div>
+        <div class="flex justify-between">
+          <span class="text-xs text-gray-500">Unscored</span>
+          <span class="text-sm font-semibold text-gray-400" x-text="rss.unscored ?? 0"></span>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- LAYER 3: THE DRILL -->
+
+<!-- Activity Feed -->
+<section x-data="{ agentFilter: 'all' }" class="bg-white border border-gray-200 rounded-xl shadow-sm">
+  <div class="px-5 pt-4 pb-3 border-b border-gray-100 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+    <h2 class="text-sm font-semibold text-gray-900 uppercase tracking-wide">Activity Feed</h2>
+    <div class="flex items-center gap-1 flex-wrap">
+      <button @click="agentFilter = 'all'"
+        class="px-2.5 py-1 rounded-md text-xs font-medium transition-colors"
+        :class="agentFilter === 'all' ? 'bg-indigo-100 text-indigo-700' : 'text-gray-500 hover:bg-gray-100'">All</button>
+      <template x-for="name in uniqueAgents" :key="name">
+        <button @click="agentFilter = name"
+          class="px-2.5 py-1 rounded-md text-xs font-medium transition-colors"
+          :class="agentFilter === name ? 'bg-indigo-100 text-indigo-700' : 'text-gray-500 hover:bg-gray-100'"
+          x-text="formatAgentName(name)"></button>
+      </template>
+    </div>
+  </div>
+  <div class="divide-y divide-gray-100 max-h-[400px] overflow-y-auto custom-scroll">
+    <template x-if="!filteredActivity.length">
+      <div class="px-5 py-8 text-center text-sm text-gray-400 italic">No activity</div>
+    </template>
+    <template x-for="ev in filteredActivity" :key="ev.id">
+      <div x-data="{ open: false }" class="px-5 py-2.5 hover:bg-gray-50/50 transition-colors">
+        <button @click="open = !open" class="w-full flex items-center gap-3 text-left">
+          <span class="text-xs text-gray-400 w-16 flex-shrink-0 text-right tabular-nums" x-text="relTime(ev.timestamp)"></span>
+          <span class="inline-flex px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wider flex-shrink-0"
+            :class="agentBadgeColor(ev.agent)"
+            x-text="formatAgentName(ev.agent)"></span>
+          <span class="text-xs font-medium text-gray-600 flex-shrink-0" x-text="ev.event_type"></span>
+          <span class="text-xs text-gray-400 truncate flex-1" x-text="summarizeDetails(ev.details)"></span>
+          <svg class="w-3.5 h-3.5 text-gray-300 transition-transform flex-shrink-0" :class="open && 'rotate-180'" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
+          </svg>
+        </button>
+        <div x-show="open" x-cloak x-transition class="mt-2 ml-[76px] p-3 bg-gray-50 rounded-lg text-xs text-gray-600 font-mono whitespace-pre-wrap break-all"
+          x-text="formatDetails(ev.details)"></div>
+      </div>
+    </template>
+  </div>
+</section>
+
+<!-- Schedule -->
+<section class="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
+  <div class="px-5 pt-4 pb-3 border-b border-gray-100">
+    <h2 class="text-sm font-semibold text-gray-900 uppercase tracking-wide">Schedule</h2>
+  </div>
+  <div class="overflow-x-auto">
+    <table class="w-full text-sm">
+      <thead>
+        <tr class="border-b border-gray-100">
+          <th class="px-5 py-2.5 text-left text-[11px] font-semibold text-gray-400 uppercase tracking-wider">Task</th>
+          <th class="px-3 py-2.5 text-left text-[11px] font-semibold text-gray-400 uppercase tracking-wider">Agent</th>
+          <th class="px-3 py-2.5 text-left text-[11px] font-semibold text-gray-400 uppercase tracking-wider">Interval</th>
+          <th class="px-3 py-2.5 text-left text-[11px] font-semibold text-gray-400 uppercase tracking-wider">Next Due</th>
+          <th class="px-3 py-2.5 text-left text-[11px] font-semibold text-gray-400 uppercase tracking-wider">Last Run</th>
+          <th class="px-3 py-2.5 text-left text-[11px] font-semibold text-gray-400 uppercase tracking-wider">Result</th>
+          <th class="px-3 py-2.5 text-center text-[11px] font-semibold text-gray-400 uppercase tracking-wider">Enabled</th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-gray-50">
+        <template x-for="s in schedule" :key="s.task">
+          <tr class="hover:bg-gray-50/50 transition-colors" :class="s.overdue && 'bg-red-50/40'">
+            <td class="px-5 py-2.5 font-medium text-gray-900" x-text="s.task"></td>
+            <td class="px-3 py-2.5">
+              <span class="inline-flex px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wider"
+                :class="agentBadgeColor(s.agent)" x-text="formatAgentName(s.agent)"></span>
+            </td>
+            <td class="px-3 py-2.5 text-gray-500 text-xs" x-text="formatInterval(s)"></td>
+            <td class="px-3 py-2.5 text-xs tabular-nums" :class="s.overdue ? 'text-red-600 font-medium' : 'text-gray-500'" x-text="relTime(s.next_due)"></td>
+            <td class="px-3 py-2.5 text-gray-400 text-xs tabular-nums" x-text="relTime(s.last_run)"></td>
+            <td class="px-3 py-2.5">
+              <span class="inline-flex px-2 py-0.5 rounded-full text-[10px] font-semibold"
+                :class="s.last_result === 'success' ? 'bg-emerald-50 text-emerald-700' : s.last_result === 'error' ? 'bg-red-50 text-red-700' : 'bg-gray-100 text-gray-500'"
+                x-text="s.last_result || '-'"></span>
+            </td>
+            <td class="px-3 py-2.5 text-center">
+              <span class="w-2 h-2 rounded-full inline-block" :class="s.enabled ? 'bg-emerald-500' : 'bg-gray-300'"></span>
+            </td>
+          </tr>
+        </template>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- Telegram Stats -->
+<section class="bg-white border border-gray-200 rounded-xl shadow-sm p-5 max-w-md">
+  <h2 class="text-sm font-semibold text-gray-900 uppercase tracking-wide mb-4">Telegram Approvals</h2>
+  <div class="flex items-center gap-6">
+    <div class="text-center">
+      <span class="text-3xl font-bold text-gray-900" x-text="telegram.total ?? 0"></span>
+      <p class="text-[10px] text-gray-400 uppercase mt-0.5">Total</p>
+    </div>
+    <div class="flex-1 space-y-2">
+      <div class="flex items-center gap-2">
+        <span class="text-[10px] text-gray-500 w-14 text-right">Approved</span>
+        <div class="flex-1 h-2 bg-gray-100 rounded-full overflow-hidden">
+          <div class="h-full bg-emerald-500 rounded-full transition-all duration-500"
+            :style="'width:' + (telegram.total ? (telegram.approved / telegram.total * 100) : 0) + '%'"></div>
+        </div>
+        <span class="text-xs font-semibold text-gray-700 w-8" x-text="telegram.approved ?? 0"></span>
+      </div>
+      <div class="flex items-center gap-2">
+        <span class="text-[10px] text-gray-500 w-14 text-right">Rejected</span>
+        <div class="flex-1 h-2 bg-gray-100 rounded-full overflow-hidden">
+          <div class="h-full bg-red-500 rounded-full transition-all duration-500"
+            :style="'width:' + (telegram.total ? (telegram.rejected / telegram.total * 100) : 0) + '%'"></div>
+        </div>
+        <span class="text-xs font-semibold text-gray-700 w-8" x-text="telegram.rejected ?? 0"></span>
+      </div>
+      <div class="flex items-center gap-2">
+        <span class="text-[10px] text-gray-500 w-14 text-right">Pending</span>
+        <div class="flex-1 h-2 bg-gray-100 rounded-full overflow-hidden">
+          <div class="h-full bg-amber-400 rounded-full transition-all duration-500"
+            :style="'width:' + (telegram.total ? (telegram.no_decision / telegram.total * 100) : 0) + '%'"></div>
+        </div>
+        <span class="text-xs font-semibold text-gray-700 w-8" x-text="telegram.no_decision ?? 0"></span>
+      </div>
+    </div>
+  </div>
+</section>
+
+</main>
+
+<footer class="max-w-[1440px] mx-auto px-4 sm:px-6 lg:px-8 py-6 text-center text-xs text-gray-300">
+  Groundswell Operations Dashboard
+</footer>
 
 <script>
-function esc(s) {
-    if (s == null) return '';
-    var d = document.createElement('div');
-    d.textContent = String(s);
-    return d.innerHTML;
+function dashboard() {
+  return {
+    agents: [],
+    attention: [],
+    intel: {},
+    backlog: { by_platform: {}, by_status: {}, total_ready: 0 },
+    apibudget: { today: {}, limits: {}, week_total: 0 },
+    rss: {},
+    activity: [],
+    schedule: [],
+    telegram: {},
+    stats: {},
+    postingHistory: [],
+    lastUpdated: '',
+    systemStatus: 'ok',
+    hasError: false,
+
+    get scoredPct() {
+      const total = this.rss.total || 0;
+      if (!total) return 0;
+      return Math.round(((this.rss.scored || 0) / total) * 100);
+    },
+
+    get uniqueAgents() {
+      const set = new Set(this.activity.map(e => e.agent).filter(Boolean));
+      return [...set].sort();
+    },
+
+    get filteredActivity() {
+      const f = this.$data?.agentFilter || 'all';
+      if (f === 'all') return this.activity;
+      return this.activity.filter(e => e.agent === f);
+    },
+
+    init() {
+      this.fetchState();
+      setInterval(() => this.fetchState(), 300000);
+    },
+
+    fetchState() {
+      fetch('/api/state')
+        .then(r => r.json())
+        .then(data => this.updateDashboard(data))
+        .catch(e => { this.lastUpdated = 'Error: ' + e.message; });
+    },
+
+    updateDashboard(data) {
+      this.agents = data.agents || [];
+      this.attention = data.attention || [];
+      this.intel = data.intel || {};
+      this.backlog = data.backlog || { by_platform: {}, by_status: {}, total_ready: 0 };
+      this.apibudget = data.api_budget || { today: {}, limits: {}, week_total: 0 };
+      this.rss = data.rss_health || {};
+      this.activity = data.activity || [];
+      this.schedule = data.schedule || [];
+      this.telegram = data.telegram_stats || {};
+      this.stats = data.stats || {};
+      this.postingHistory = data.posting_history || [];
+
+      const safety = data.brand_safety?.color || 'GREEN';
+      this.hasError = this.attention.some(a => a.severity === 'high');
+      if (safety === 'BLACK' || safety === 'RED' || this.hasError) {
+        this.systemStatus = 'critical';
+      } else if (safety === 'YELLOW' || this.attention.length > 0) {
+        this.systemStatus = 'warning';
+      } else {
+        this.systemStatus = 'ok';
+      }
+
+      this.lastUpdated = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+      this.$nextTick(() => {
+        if (this.postingHistory.length > 1) {
+          const counts = this.postingHistory.map(d => d.count);
+          this.renderSparkline('spark-posts', counts, '#6366f1');
+        }
+      });
+    },
+
+    relTime(iso) {
+      if (!iso) return '-';
+      const now = Date.now();
+      const then = new Date(iso).getTime();
+      const diff = Math.max(0, now - then);
+      const s = Math.floor(diff / 1000);
+      if (s < 60) return s + 's ago';
+      const m = Math.floor(s / 60);
+      if (m < 60) return m + 'm ago';
+      const h = Math.floor(m / 60);
+      if (h < 24) return h + 'h ago';
+      const d = Math.floor(h / 24);
+      return d + 'd ago';
+    },
+
+    formatAgentName(name) {
+      if (!name) return '';
+      return name.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+    },
+
+    formatInterval(s) {
+      if (s.interval_minutes) return s.interval_minutes + 'm';
+      if (s.daily_at) return 'Daily ' + s.daily_at;
+      if (s.weekly_at) return 'Weekly ' + s.weekly_at;
+      return '-';
+    },
+
+    agentDotColor(agent) {
+      if (agent.last_result === 'success') return 'bg-emerald-500';
+      if (agent.last_result === 'error') return 'bg-red-500';
+      if (agent.overdue) return 'bg-amber-500';
+      return 'bg-gray-300';
+    },
+
+    agentBadgeColor(name) {
+      const colors = {
+        orchestrator: 'bg-violet-100 text-violet-700',
+        publisher: 'bg-blue-100 text-blue-700',
+        x_scout: 'bg-teal-100 text-teal-700',
+        x_agent: 'bg-sky-100 text-sky-700',
+        linkedin_agent: 'bg-blue-100 text-blue-700',
+        rss_scout_tech: 'bg-cyan-100 text-cyan-700',
+        rss_scout_cannabis: 'bg-green-100 text-green-700',
+        rss_fetch: 'bg-gray-100 text-gray-600',
+        marketing_manager: 'bg-indigo-100 text-indigo-700',
+        creator: 'bg-pink-100 text-pink-700',
+        analyst: 'bg-amber-100 text-amber-700',
+        scout: 'bg-teal-100 text-teal-700',
+        inbound_engager: 'bg-cyan-100 text-cyan-700',
+        outbound_engager: 'bg-emerald-100 text-emerald-700',
+        seo: 'bg-orange-100 text-orange-700',
+        diary: 'bg-purple-100 text-purple-700',
+        blog_publisher: 'bg-rose-100 text-rose-700',
+        telegram: 'bg-blue-100 text-blue-700',
+        dashboard: 'bg-gray-100 text-gray-700',
+      };
+      return colors[name] || 'bg-gray-100 text-gray-600';
+    },
+
+    categoryColor(cat) {
+      const c = (cat || '').toLowerCase();
+      const map = {
+        tier1_activity: 'bg-violet-100 text-violet-700',
+        trend: 'bg-blue-100 text-blue-700',
+        competitive: 'bg-red-100 text-red-700',
+        opportunity: 'bg-emerald-100 text-emerald-700',
+        newsjack: 'bg-amber-100 text-amber-700',
+        market_signal: 'bg-cyan-100 text-cyan-700',
+        cannabis_industry: 'bg-green-100 text-green-700',
+        conversation: 'bg-indigo-100 text-indigo-700',
+        event_monitoring: 'bg-pink-100 text-pink-700',
+      };
+      return map[c] || 'bg-gray-100 text-gray-600';
+    },
+
+    budgetBarColor(used, limit) {
+      const pct = (used || 0) / (limit || 1);
+      if (pct >= 0.9) return 'bg-red-500';
+      if (pct >= 0.7) return 'bg-amber-500';
+      return 'bg-emerald-500';
+    },
+
+    summarizeDetails(details) {
+      if (!details) return '';
+      try {
+        const obj = typeof details === 'string' ? JSON.parse(details) : details;
+        const keys = Object.keys(obj);
+        if (keys.length === 0) return '';
+        for (const k of keys) {
+          const v = obj[k];
+          if (typeof v === 'string' && v.length > 0) return v.substring(0, 80);
+        }
+        return keys.join(', ');
+      } catch { return String(details).substring(0, 80); }
+    },
+
+    formatDetails(details) {
+      if (!details) return '';
+      try {
+        const obj = typeof details === 'string' ? JSON.parse(details) : details;
+        return JSON.stringify(obj, null, 2);
+      } catch { return String(details); }
+    },
+
+    renderSparkline(id, data, color) {
+      const el = document.getElementById(id);
+      if (!el || !data.length) return;
+      const w = 64, h = 24;
+      const max = Math.max(...data, 1);
+      const min = Math.min(...data, 0);
+      const range = max - min || 1;
+      const pts = data.map((v, i) => {
+        const x = (i / Math.max(data.length - 1, 1)) * w;
+        const y = h - ((v - min) / range) * (h - 4) - 2;
+        return x + ',' + y;
+      }).join(' ');
+      el.innerHTML = '<svg width="' + w + '" height="' + h + '" viewBox="0 0 ' + w + ' ' + h + '"><polyline fill="none" stroke="' + color + '" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" points="' + pts + '"/></svg>';
+    },
+
+    killSwitch() {
+      if (!confirm('Set brand safety to BLACK? This halts all agent activity.')) return;
+      fetch('/api/kill', { method: 'POST' })
+        .then(r => r.json())
+        .then(d => { if (d.ok) this.fetchState(); })
+        .catch(e => alert('Error: ' + e.message));
+    },
+
+    resumeSystem() {
+      if (!confirm('Resume system? Brand safety will be set to GREEN.')) return;
+      fetch('/api/resume', { method: 'POST' })
+        .then(r => r.json())
+        .then(d => { if (d.ok) this.fetchState(); })
+        .catch(e => alert('Error: ' + e.message));
+    },
+  };
 }
-
-function shortTime(iso) {
-    if (!iso) return '-';
-    try {
-        var d = new Date(iso);
-        return d.toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'});
-    } catch(e) { return iso; }
-}
-
-function shortDateTime(iso) {
-    if (!iso) return '-';
-    try {
-        var d = new Date(iso);
-        return d.toLocaleDateString([], {month:'short', day:'numeric'}) + ' ' +
-               d.toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'});
-    } catch(e) { return iso; }
-}
-
-function truncate(s, n) {
-    if (!s) return '';
-    s = String(s);
-    return s.length > n ? s.substring(0, n) + '...' : s;
-}
-
-function priorityClass(p) {
-    if (p <= 3) return 'priority-high';
-    if (p <= 6) return 'priority-med';
-    return 'priority-low';
-}
-
-function renderApprovals(approvals) {
-    var el = document.getElementById('approvals-content');
-    if (!approvals || approvals.length === 0) {
-        el.innerHTML = '<div class="empty">No pending approvals</div>';
-        return;
-    }
-    var html = '<table><tr><th>Key</th><th>Agent</th><th>Type</th><th>Payload</th><th>Created</th><th>Actions</th></tr>';
-    for (var i = 0; i < approvals.length; i++) {
-        var a = approvals[i];
-        html += '<tr>';
-        html += '<td>' + esc(a.idempotency_key) + '</td>';
-        html += '<td>' + esc(a.agent) + '</td>';
-        html += '<td>' + esc(a.action_type) + '</td>';
-        html += '<td title="' + esc(a.payload) + '">' + esc(truncate(a.payload, 60)) + '</td>';
-        html += '<td>' + shortDateTime(a.created_at) + '</td>';
-        html += '<td>';
-        html += '<button class="btn btn-approve" onclick="doApproval(\'' + esc(a.idempotency_key) + '\', \'approve\')">Approve</button>';
-        html += '<button class="btn btn-reject" onclick="doApproval(\'' + esc(a.idempotency_key) + '\', \'reject\')">Reject</button>';
-        html += '</td>';
-        html += '</tr>';
-    }
-    html += '</table>';
-    el.innerHTML = html;
-}
-
-function renderEvents(events) {
-    var el = document.getElementById('events-content');
-    if (!events || events.length === 0) {
-        el.innerHTML = '<div class="empty">No recent events</div>';
-        return;
-    }
-    var html = '<table><tr><th>Time</th><th>Agent</th><th>Type</th><th>Details</th></tr>';
-    for (var i = 0; i < events.length; i++) {
-        var e = events[i];
-        html += '<tr>';
-        html += '<td>' + shortDateTime(e.timestamp) + '</td>';
-        html += '<td>' + esc(e.agent) + '</td>';
-        html += '<td>' + esc(e.event_type) + '</td>';
-        html += '<td title="' + esc(e.details) + '">' + esc(truncate(e.details, 80)) + '</td>';
-        html += '</tr>';
-    }
-    html += '</table>';
-    el.innerHTML = html;
-}
-
-function renderSignals(signals) {
-    var el = document.getElementById('signals-content');
-    if (!signals || signals.length === 0) {
-        el.innerHTML = '<div class="empty">No pending signals</div>';
-        return;
-    }
-    var html = '<table><tr><th>Pri</th><th>Type</th><th>Source</th><th>Data</th><th>Created</th></tr>';
-    for (var i = 0; i < signals.length; i++) {
-        var s = signals[i];
-        html += '<tr>';
-        html += '<td class="' + priorityClass(s.priority) + '">' + esc(s.priority) + '</td>';
-        html += '<td>' + esc(s.type) + '</td>';
-        html += '<td>' + esc(s.source_agent) + '</td>';
-        html += '<td title="' + esc(s.data) + '">' + esc(truncate(s.data, 60)) + '</td>';
-        html += '<td>' + shortDateTime(s.created_at) + '</td>';
-        html += '</tr>';
-    }
-    html += '</table>';
-    el.innerHTML = html;
-}
-
-function renderSchedule(schedule) {
-    var el = document.getElementById('schedule-content');
-    if (!schedule || schedule.length === 0) {
-        el.innerHTML = '<div class="empty">No scheduled tasks</div>';
-        return;
-    }
-    var html = '<table><tr><th>Task</th><th>Agent</th><th>Interval</th><th>Next Due</th><th>Last Run</th><th>Result</th><th>Status</th></tr>';
-    for (var i = 0; i < schedule.length; i++) {
-        var s = schedule[i];
-        var interval = '';
-        if (s.interval_minutes) interval = s.interval_minutes + 'm';
-        else if (s.daily_at) interval = 'daily ' + s.daily_at;
-        else if (s.weekly_at) interval = 'weekly ' + s.weekly_at;
-        html += '<tr>';
-        html += '<td>' + esc(s.task) + '</td>';
-        html += '<td>' + esc(s.agent) + '</td>';
-        html += '<td>' + esc(interval) + '</td>';
-        html += '<td>' + shortDateTime(s.next_due) + '</td>';
-        html += '<td>' + shortDateTime(s.last_run) + '</td>';
-        html += '<td>' + esc(truncate(s.last_result, 40)) + '</td>';
-        html += '<td>' + (s.enabled ? '<span class="tag tag-enabled">ON</span>' : '<span class="tag tag-disabled">OFF</span>') + '</td>';
-        html += '</tr>';
-    }
-    html += '</table>';
-    el.innerHTML = html;
-}
-
-function updateDashboard(data) {
-    // Safety banner
-    var color = data.brand_safety ? data.brand_safety.color : 'GREEN';
-    var dot = document.getElementById('safety-dot');
-    dot.className = 'safety-dot safety-' + color;
-    var label = document.getElementById('safety-label');
-    label.textContent = color;
-    label.style.color = {'GREEN':'#3fb950','YELLOW':'#d29922','RED':'#f85149','BLACK':'#484f58'}[color] || '#c9d1d9';
-
-    document.getElementById('trust-phase').textContent = data.trust_phase || 'A';
-
-    // Stats
-    if (data.stats) {
-        document.getElementById('stat-posts').textContent = data.stats.posts_today;
-        document.getElementById('stat-actions').textContent = data.stats.actions_this_hour;
-        document.getElementById('stat-signals').textContent = data.stats.pending_signals;
-        document.getElementById('stat-approvals').textContent = data.stats.pending_approvals;
-    }
-
-    renderApprovals(data.approvals);
-    renderEvents(data.events);
-    renderSignals(data.signals);
-    renderSchedule(data.schedule);
-
-    document.getElementById('last-updated').textContent = 'Updated: ' + new Date().toLocaleTimeString();
-}
-
-function fetchState() {
-    fetch('/api/state')
-        .then(function(r) { return r.json(); })
-        .then(updateDashboard)
-        .catch(function(e) {
-            document.getElementById('last-updated').textContent = 'Error: ' + e.message;
-        });
-}
-
-function doApproval(key, decision) {
-    fetch('/api/approve', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({key: key, decision: decision})
-    })
-    .then(function(r) { return r.json(); })
-    .then(function(d) {
-        if (d.ok) fetchState();
-        else alert('Error: ' + JSON.stringify(d));
-    })
-    .catch(function(e) { alert('Error: ' + e.message); });
-}
-
-function killSwitch() {
-    if (!confirm('Set brand safety to BLACK? This halts all agent activity.')) return;
-    fetch('/api/kill', { method: 'POST' })
-        .then(function(r) { return r.json(); })
-        .then(function(d) { if (d.ok) fetchState(); })
-        .catch(function(e) { alert('Error: ' + e.message); });
-}
-
-function resumeSystem() {
-    if (!confirm('Resume system? Brand safety will be set to GREEN.')) return;
-    fetch('/api/resume', { method: 'POST' })
-        .then(function(r) { return r.json(); })
-        .then(function(d) { if (d.ok) fetchState(); })
-        .catch(function(e) { alert('Error: ' + e.message); });
-}
-
-// Initial load + polling
-fetchState();
-setInterval(fetchState, 10000);
 </script>
 </body>
-</html>
-"""
+</html>"""
 
 
 # ---------------------------------------------------------------------------
@@ -591,7 +1077,6 @@ setInterval(fetchState, 10000);
 class DashboardHandler(BaseHTTPRequestHandler):
 
     def log_message(self, format, *args):
-        # Quieter logging: just method + path
         sys.stderr.write(f"[dashboard] {args[0]}\n")
 
     def _send_json(self, data, status=200):
@@ -599,6 +1084,7 @@ class DashboardHandler(BaseHTTPRequestHandler):
         self.send_response(status)
         self.send_header("Content-Type", "application/json")
         self.send_header("Content-Length", str(len(body)))
+        self.send_header("Access-Control-Allow-Origin", "*")
         self.end_headers()
         self.wfile.write(body)
 
@@ -620,7 +1106,6 @@ class DashboardHandler(BaseHTTPRequestHandler):
     def do_GET(self):
         parsed = urllib.parse.urlparse(self.path)
         path = parsed.path
-        qs = urllib.parse.parse_qs(parsed.query)
 
         if path == "/":
             self._send_html(HTML_PAGE)
@@ -628,40 +1113,7 @@ class DashboardHandler(BaseHTTPRequestHandler):
         elif path == "/api/state":
             conn = get_conn()
             try:
-                self._send_json(get_full_state(conn))
-            finally:
-                conn.close()
-
-        elif path == "/api/approvals":
-            conn = get_conn()
-            try:
-                data = get_pending_approvals(conn)
-                self._send_json({"approvals": data, "count": len(data)})
-            finally:
-                conn.close()
-
-        elif path == "/api/events":
-            limit = int(qs.get("limit", [20])[0])
-            conn = get_conn()
-            try:
-                data = get_recent_events(conn, limit=limit)
-                self._send_json({"events": data, "count": len(data)})
-            finally:
-                conn.close()
-
-        elif path == "/api/schedule":
-            conn = get_conn()
-            try:
-                data = get_schedule(conn)
-                self._send_json({"schedule": data, "count": len(data)})
-            finally:
-                conn.close()
-
-        elif path == "/api/signals":
-            conn = get_conn()
-            try:
-                data = get_pending_signals(conn)
-                self._send_json({"signals": data, "count": len(data)})
+                self._send_json(get_full_dashboard_state(conn))
             finally:
                 conn.close()
 
@@ -693,7 +1145,6 @@ class DashboardHandler(BaseHTTPRequestHandler):
                 if cur.rowcount == 0:
                     self._send_json({"error": f"Action '{key}' not found or not pending"}, status=404)
                 else:
-                    # Log the approval/rejection event
                     conn.execute(
                         "INSERT INTO events (timestamp, agent, event_type, details) VALUES (?, 'dashboard', ?, ?)",
                         (ts, f"action_{new_status}", json.dumps({"key": key})),
@@ -743,7 +1194,7 @@ class DashboardHandler(BaseHTTPRequestHandler):
 
 
 # ---------------------------------------------------------------------------
-# CLI commands
+# CLI
 # ---------------------------------------------------------------------------
 
 def cmd_serve(port):
@@ -753,7 +1204,7 @@ def cmd_serve(port):
         sys.exit(1)
 
     server = HTTPServer(("0.0.0.0", port), DashboardHandler)
-    print(f"Groundswell Dashboard running on http://0.0.0.0:{port}")
+    print(f"Groundswell Dashboard v2 running on http://localhost:{port}")
     print(f"Database: {DB_PATH}")
     print("Press Ctrl+C to stop.")
     try:
@@ -770,18 +1221,14 @@ def cmd_status():
 
     conn = get_conn()
     try:
-        state = get_full_state(conn)
+        state = get_full_dashboard_state(conn)
         print(json.dumps(state, indent=2, default=str))
     finally:
         conn.close()
 
 
-# ---------------------------------------------------------------------------
-# Main
-# ---------------------------------------------------------------------------
-
 def main():
-    parser = argparse.ArgumentParser(description="Groundswell Dashboard")
+    parser = argparse.ArgumentParser(description="Groundswell Dashboard v2")
     sub = parser.add_subparsers(dest="command")
 
     serve_p = sub.add_parser("serve", help="Start the dashboard web server")
