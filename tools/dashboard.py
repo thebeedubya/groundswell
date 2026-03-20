@@ -83,10 +83,12 @@ def get_attention_items(conn):
     one_day_ago = (datetime.now(timezone.utc) - timedelta(hours=24)).isoformat().replace("+00:00", "Z")
     items = []
 
-    # Errors in last 24h
+    # Errors in last 24h (exclude rate limits — the system handling its own limits is not an error)
     error_rows = conn.execute(
         "SELECT * FROM events WHERE timestamp >= ? "
         "AND (event_type LIKE '%error%' OR event_type LIKE '%block%' OR event_type LIKE '%fail%') "
+        "AND event_type NOT LIKE '%rate_limit%' "
+        "AND details NOT LIKE '%rate_limit%' "
         "ORDER BY id DESC",
         (one_day_ago,),
     ).fetchall()
