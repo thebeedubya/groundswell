@@ -91,9 +91,31 @@ def get_attention_items(conn):
         (one_day_ago,),
     ).fetchall()
     for r in error_rows:
+        # Parse details JSON for a human-readable summary
+        detail_summary = ""
+        if r["details"]:
+            try:
+                d = json.loads(r["details"])
+                # Prefer note/reason/error fields, fall back to item_id + platform
+                if d.get("note"):
+                    detail_summary = d["note"]
+                elif d.get("reason"):
+                    detail_summary = d["reason"]
+                elif d.get("error"):
+                    detail_summary = d["error"]
+                else:
+                    parts = []
+                    if d.get("platform"):
+                        parts.append(d["platform"])
+                    if d.get("item_id"):
+                        parts.append(d["item_id"])
+                    detail_summary = " | ".join(parts) if parts else ""
+            except (json.JSONDecodeError, TypeError):
+                detail_summary = str(r["details"])[:120]
+
         items.append({
             "type": "error",
-            "message": f"[{r['agent']}] {r['event_type']}: {r['details'] or ''}",
+            "message": f"[{r['agent']}] {r['event_type']}: {detail_summary}",
             "severity": "high",
             "timestamp": r["timestamp"],
         })
