@@ -65,15 +65,21 @@ Then EXIT. Don't waste compute on empty cycles.
 
 For each due task, you will spawn the appropriate agent. Here's how:
 
-### Special handling: rss_fetch (Python tool, not Claude agent)
+### Special handling: Python tool tasks (not Claude agents)
 
-If the due task is `rss_fetch`, run it directly as a Python tool — no Claude agent needed:
+Some tasks are pure Python — no Claude agent needed, zero token cost. Run them directly:
 
+**rss_fetch:**
 ```bash
 python3 tools/rss_fetch.py fetch
 ```
 
-Log the result and mark the task complete. This costs zero Claude tokens.
+**approval_triage:**
+```bash
+python3 tools/telegram.py triage
+```
+
+Log the result and mark the task complete.
 
 ### Special handling: inbound_x
 

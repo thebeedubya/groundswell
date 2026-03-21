@@ -423,6 +423,113 @@ def cmd_alert(args):
         fail(f"Telegram returned ok=false: {result.get('description', 'unknown')}")
 
 
+def cmd_triage(args):
+    """Triage unanswered approvals: expire stale, send digest of actionable items."""
+    token, chat_id = get_credentials()
+    conn = get_db()
+    ts = now_iso()
+    stale_hours = args.stale_hours
+    dry_run = args.dry_run
+
+    from datetime import timedelta
+    cutoff = (datetime.now(timezone.utc) - timedelta(hours=stale_hours)).isoformat().replace("+00:00", "Z")
+
+    # Get all unanswered
+    all_pending = conn.execute(
+        "SELECT * FROM telegram_approvals WHERE decision IS NULL ORDER BY created_at DESC"
+    ).fetchall()
+
+    if not all_pending:
+        conn.close()
+        emit({"ok": True, "message": "No unanswered approvals", "expired": 0, "actionable": 0})
+
+    stale = [r for r in all_pending if r["created_at"] < cutoff]
+    recent = [r for r in all_pending if r["created_at"] >= cutoff]
+
+    # 1. Expire stale approvals
+    expired_count = 0
+    if not dry_run:
+        for r in stale:
+            conn.execute(
+                "UPDATE telegram_approvals SET decision = 'expired', responded_at = ? WHERE approval_id = ?",
+                (ts, r["approval_id"]),
+            )
+            expired_count += 1
+        if expired_count:
+            conn.commit()
+            # Log the bulk expiry
+            conn.execute(
+                "INSERT INTO events (timestamp, agent, event_type, details) VALUES (?, 'triage', 'bulk_expire', ?)",
+                (ts, json.dumps({"expired_count": expired_count, "stale_hours": stale_hours})),
+            )
+            conn.commit()
+    else:
+        expired_count = len(stale)
+
+    # 2. Categorize recent items by value
+    tier1 = []
+    actionable = []
+    low_priority = []
+
+    tier1_handles = {"karpathy", "emollick", "garrytan", "simonw", "kimrivers",
+                     "gregisenberg", "liamottley_", "alliekmiller", "shadddale"}
+
+    for r in recent:
+        aid = r["approval_id"] or ""
+        text = r["text"] or ""
+        text_lower = text.lower()
+
+        # Check if Tier 1
+        is_tier1 = "tier 1" in text_lower or any(h in aid.lower() for h in tier1_handles)
+        # Check high score
+        import re
+        score_match = re.search(r"Score:\s*([\d.]+)", text)
+        score = float(score_match.group(1)) if score_match else 0
+
+        if is_tier1 or score >= 80:
+            tier1.append({"id": r["approval_id"], "text": text[:120], "score": score, "created": r["created_at"]})
+        elif "community" in aid.lower() or "inbound" in aid.lower():
+            actionable.append({"id": r["approval_id"], "text": text[:120], "score": score, "created": r["created_at"]})
+        else:
+            actionable.append({"id": r["approval_id"], "text": text[:120], "score": score, "created": r["created_at"]})
+
+    # 3. Send digest to Telegram
+    if not dry_run and (tier1 or actionable):
+        lines = [f"\U0001f4e5 *Approval Triage*"]
+        lines.append(f"Expired {expired_count} stale items (>{stale_hours}h old)")
+        lines.append(f"{len(recent)} items remaining\n")
+
+        if tier1:
+            lines.append(f"\U0001f451 *HIGH VALUE ({len(tier1)}):*")
+            for item in tier1[:5]:
+                short = item["text"][:80].replace("\n", " ")
+                lines.append(f"  \u2022 {short}")
+            lines.append("")
+
+        if actionable:
+            lines.append(f"\u2705 *Actionable ({len(actionable)}):*")
+            for item in actionable[:5]:
+                short = item["text"][:80].replace("\n", " ")
+                lines.append(f"  \u2022 {short}")
+
+        digest_text = "\n".join(lines)
+        telegram_api(token, "sendMessage", {
+            "chat_id": chat_id,
+            "text": digest_text,
+            "parse_mode": "Markdown",
+        })
+
+    conn.close()
+    emit({
+        "ok": True,
+        "total_pending": len(all_pending),
+        "expired": expired_count,
+        "tier1": len(tier1),
+        "actionable": len(actionable),
+        "dry_run": dry_run,
+    })
+
+
 # ---------------------------------------------------------------------------
 # CLI parser
 # ---------------------------------------------------------------------------
@@ -462,6 +569,11 @@ def build_parser():
     p.add_argument("--level", required=True, choices=["info", "warning", "critical"], help="Alert severity")
     p.add_argument("--text", required=True, help="Alert message text")
 
+    # triage
+    p = sub.add_parser("triage", help="Triage unanswered approvals: expire stale, surface high-value")
+    p.add_argument("--stale-hours", type=int, default=12, help="Expire approvals older than N hours (default: 12)")
+    p.add_argument("--dry-run", action="store_true", help="Show what would happen without acting")
+
     return parser
 
 
@@ -471,6 +583,7 @@ COMMANDS = {
     "approval": cmd_approval,
     "check-approval": cmd_check_approval,
     "alert": cmd_alert,
+    "triage": cmd_triage,
 }
 
 

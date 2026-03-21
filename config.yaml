@@ -115,6 +115,15 @@ schedule:
       timeout_seconds: 180
       enabled: true
 
+    # --- Approval triage (auto-expire stale, digest actionable) ---
+    approval_triage:
+      agent: approval_triage
+      # Run 2x/day — morning and evening. Expires >12h stale, sends digest.
+      daily_at: ["07:00", "18:00"]
+      jitter_minutes: 5
+      timeout_seconds: 30
+      enabled: true
+
     # --- Legacy agents (disabled — replaced by new architecture) ---
     publisher_x:
       agent: publisher
