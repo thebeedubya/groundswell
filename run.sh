@@ -46,6 +46,19 @@ while true; do
 
     sleep "$SLEEP_SECS"
 
+    # Run Python tool tasks directly — these don't need Claude, $0 cost
+    DUE_TASKS=$(python3 tools/schedule.py due 2>/dev/null || echo "[]")
+
+    if echo "$DUE_TASKS" | grep -q '"rss_fetch"'; then
+        python3 tools/rss_fetch.py fetch >> "$LOG_DIR/rss_fetch.log" 2>&1
+        python3 tools/schedule.py complete --task rss_fetch 2>/dev/null
+    fi
+
+    if echo "$DUE_TASKS" | grep -q '"approval_triage"'; then
+        python3 tools/telegram.py triage >> "$LOG_DIR/triage.log" 2>&1
+        python3 tools/schedule.py complete --task approval_triage 2>/dev/null
+    fi
+
     # Run one orchestrator cycle
     LOG_FILE="$LOG_DIR/orchestrator-$(date +%Y-%m-%d).log"
     echo "--- $(date -u +%Y-%m-%dT%H:%M:%SZ) ---" >> "$LOG_FILE"
