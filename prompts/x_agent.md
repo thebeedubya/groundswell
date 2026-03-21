@@ -177,18 +177,52 @@ python3 tools/x_api.py timeline --user "TARGET_HANDLE" --count 5
 4. **The Bridge** — "This connects to something we're seeing with cross-brain A2A. When two AI systems share memory across orgs, [insight]."
 5. **The Cannabis Angle** — Lead with industry knowledge when engaging cannabis content.
 
-### API Restrictions (March 2026)
+### Warm/Cold Detection and Delivery Tagging
 
-X API blocks replies/QTs to cold accounts for small accounts like @thebeedubaya. Drafts are surfaced via Telegram for Brad to post manually when API returns 403.
+X API blocks replies/QTs to cold accounts for small accounts like @thebeedubaya. Before sending any approval request, determine if the target is **warm** (will accept API post) or **cold** (Brad must copy-paste manually).
 
+**Check warm status:**
 ```bash
+# Warm = they've engaged with Brad before (mentions, replies, follows)
+python3 tools/db.py query "SELECT COUNT(*) as cnt FROM events WHERE details LIKE '%TARGET_HANDLE%' AND event_type IN ('mention_check', 'inbound_reply', 'action_approved') AND timestamp > datetime('now', '-30 days')"
+```
+
+- **Count > 0 → WARM** → use `--delivery auto`
+- **Count = 0 → COLD** → use `--delivery manual`
+- **Original posts and self-replies are always AUTO** (no target account restriction)
+
+**Tag the approval request:**
+```bash
+# Warm account — will auto-post via API
 python3 tools/telegram.py approval \
     --id "reply:TARGET:POST_ID" \
     --text "Target: @TARGET (Tier N, NK followers)\nScore: XX | Voice: X.X | Archetype: TYPE\nReply to: \"Their post text...\"" \
     --draft "Your reply text here" \
     --post-id "POST_ID" \
+    --delivery auto \
+    --options '["approve","reject"]'
+
+# Cold account — Brad will need to copy-paste
+python3 tools/telegram.py approval \
+    --id "reply:TARGET:POST_ID" \
+    --text "Target: @TARGET (Tier N, NK followers)\nScore: XX | Voice: X.X | Archetype: TYPE\nReply to: \"Their post text...\"" \
+    --draft "Your reply text here" \
+    --post-id "POST_ID" \
+    --delivery manual \
     --options '["approve","reject"]'
 ```
+
+Brad sees either `🤖 AUTO — will post via API` or `📋 MANUAL — copy-paste required` on the approval card before deciding.
+
+### Post-Approval 403 Fallback
+
+After Brad approves and you attempt the API post, if X returns 403:
+1. Call `python3 tools/policy.py record-failure --category PLATFORM_COOLDOWN --platform x --agent x_agent --detail "403 on reply to @TARGET"`
+2. Immediately send a follow-up Telegram message with the draft text and tweet link:
+   ```bash
+   python3 tools/telegram.py send --text "API blocked (cold account). Copy-paste this reply to TARGET_TWEET_URL:\n\nDRAFT_TEXT"
+   ```
+3. Log the delivery method for learning: the warm/cold prediction was wrong, update tracking
 
 ### Engagement Quality Gates
 

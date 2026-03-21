@@ -254,11 +254,18 @@ def cmd_approval(args):
         tweet_url = f"https://x.com/{handle}/status/{args.post_id}" if handle else f"https://x.com/i/status/{args.post_id}"
         card_text = f"{card_text}\n\nTweet: {tweet_url}"
 
+    # Tag delivery method so Brad knows what to expect
+    delivery = getattr(args, "delivery", None) or "auto"
+    if delivery == "manual":
+        delivery_tag = "\U0001f4cb MANUAL — copy-paste required"
+    else:
+        delivery_tag = "\U0001f916 AUTO — will post via API"
+
     import html as html_mod
     safe_card = html_mod.escape(card_text)
     payload = {
         "chat_id": chat_id,
-        "text": f"\U0001f514 <b>Approval Required</b> (#{html_mod.escape(approval_id)})\n\n{safe_card}",
+        "text": f"\U0001f514 <b>Approval Required</b> (#{html_mod.escape(approval_id)})\n{delivery_tag}\n\n{safe_card}",
         "parse_mode": "HTML",
         "reply_markup": reply_markup,
     }
@@ -443,6 +450,8 @@ def build_parser():
     p.add_argument("--options", required=True, help='JSON array of options (e.g. \'["approve","reject"]\')')
     p.add_argument("--draft", default=None, help="Draft text to send as separate copy-pasteable message")
     p.add_argument("--post-id", default=None, help="Tweet/post ID to generate a direct link")
+    p.add_argument("--delivery", default="auto", choices=["auto", "manual"],
+                   help="Delivery method: auto (API post) or manual (Brad copy-pastes). Shown on approval card.")
 
     # check-approval
     p = sub.add_parser("check-approval", help="Check if an approval was answered")

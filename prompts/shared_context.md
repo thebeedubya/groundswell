@@ -156,7 +156,7 @@ All tools are invoked as `python3 tools/<tool>.py <command> [args]`.
 | `tools/signal.py` | `emit --type SIGNAL_TYPE --data '{"key": "value"}'` | Emit a signal to the bus |
 | `tools/signal.py` | `check --type SIGNAL_TYPE` | Check for pending signals |
 | `tools/telegram.py` | `send --text "..."` | Send Telegram notification |
-| `tools/telegram.py` | `approval --id ID --text "..." --draft "copy-paste text" --post-id "POST_ID" --options '["approve","reject"]'` | Queue item for Brad's approval (draft sent as separate message, post-id generates tweet link) |
+| `tools/telegram.py` | `approval --id ID --text "..." --draft "copy-paste text" --post-id "POST_ID" --delivery auto --options '["approve","reject"]'` | Queue item for Brad's approval (--delivery: auto or manual, shown on card) |
 | `tools/telegram.py` | `check-approval --id ID` | Check if Brad responded |
 | `tools/telegram.py` | `alert --level warning --text "..."` | Send severity-formatted alert |
 | `tools/telegram.py` | `briefing --data '{"followers": N, ...}'` | Send daily briefing |
