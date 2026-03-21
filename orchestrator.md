@@ -114,7 +114,7 @@ Prepend the following state block to the agent's prompt before spawning:
 - Pending signals for you: {signals filtered to this agent, or "none"}
 - Task context: {task payload and task_type that triggered this invocation}
 - Recent events: {last 5 events from this specific agent, extracted from recent_events}
-- Recent failures: {query events table for this agent's errors/blocks/failures in last 24h — if any, summarize: "Rate limited 2h ago (125/30 actions). Reduce volume." If none, say "none"}
+- Recent failures: {query events table for this agent's errors/blocks/failures in last 24h — if any, summarize: "Rate limited 2h ago (125/30 actions). Reduce volume." If none, say "none". DO NOT log a separate event for this query — it is a read-only lookup for state injection.}
 - Active cooldowns: {any platform_cooldowns currently active for platforms this agent uses}
 ```
 
