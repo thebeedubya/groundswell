@@ -493,31 +493,70 @@ def cmd_triage(args):
         else:
             actionable.append({"id": r["approval_id"], "text": text[:120], "score": score, "created": r["created_at"]})
 
-    # 3. Send digest to Telegram
-    if not dry_run and (tier1 or actionable):
-        lines = [f"\U0001f4e5 *Approval Triage*"]
-        lines.append(f"Expired {expired_count} stale items (>{stale_hours}h old)")
-        lines.append(f"{len(recent)} items remaining\n")
-
-        if tier1:
-            lines.append(f"\U0001f451 *HIGH VALUE ({len(tier1)}):*")
-            for item in tier1[:5]:
-                short = item["text"][:80].replace("\n", " ")
-                lines.append(f"  \u2022 {short}")
-            lines.append("")
-
-        if actionable:
-            lines.append(f"\u2705 *Actionable ({len(actionable)}):*")
-            for item in actionable[:5]:
-                short = item["text"][:80].replace("\n", " ")
-                lines.append(f"  \u2022 {short}")
-
-        digest_text = "\n".join(lines)
+    # 3. Re-send actionable items as fresh approval cards (Tier 1 first)
+    if not dry_run:
+        # Summary header
         telegram_api(token, "sendMessage", {
             "chat_id": chat_id,
-            "text": digest_text,
+            "text": f"\U0001f4e5 *Triage Complete*\nExpired {expired_count} stale items\n{len(tier1)} high-value + {len(actionable)} actionable remaining \u2014 cards below \u2b07",
             "parse_mode": "Markdown",
         })
+
+        # Re-send each actionable item as a fresh card with buttons
+        all_items = tier1 + actionable
+        for item in all_items:
+            aid = item["id"]
+            # Get the full record
+            row = conn.execute(
+                "SELECT * FROM telegram_approvals WHERE approval_id = ?", (aid,)
+            ).fetchone()
+            if not row:
+                continue
+
+            # Reset decision so buttons work again
+            conn.execute(
+                "UPDATE telegram_approvals SET decision = NULL, responded_at = NULL WHERE approval_id = ?",
+                (aid,),
+            )
+
+            # Parse options from stored record
+            try:
+                options = json.loads(row["options"])
+            except (json.JSONDecodeError, TypeError):
+                options = ["approve", "reject"]
+
+            # Build inline keyboard
+            buttons = [
+                {"text": button_label(opt), "callback_data": f"{opt.lower()}:{aid}"}
+                for opt in options
+            ]
+
+            # Detect warm/cold for delivery tag
+            card_text = row["text"] or ""
+            is_reply = "reply" in aid.lower() or "qt:" in aid.lower() or "community" in aid.lower()
+            delivery_tag = "\U0001f4cb MANUAL" if is_reply else "\U0001f916 AUTO"
+            priority_tag = "\U0001f451 HIGH VALUE" if item in tier1 else ""
+            tag_line = " | ".join(filter(None, [priority_tag, delivery_tag]))
+
+            import html as html_mod
+            safe_card = html_mod.escape(card_text)
+            payload = {
+                "chat_id": chat_id,
+                "text": f"\U0001f514 <b>Approval</b> (#{html_mod.escape(aid[:40])})\n{tag_line}\n\n{safe_card}",
+                "parse_mode": "HTML",
+                "reply_markup": {"inline_keyboard": [buttons]},
+            }
+            result = telegram_api(token, "sendMessage", payload)
+
+            if result and result.get("ok"):
+                # Update stored message_id to the new card
+                new_msg_id = result["result"]["message_id"]
+                conn.execute(
+                    "UPDATE telegram_approvals SET message_id = ? WHERE approval_id = ?",
+                    (new_msg_id, aid),
+                )
+
+        conn.commit()
 
     conn.close()
     emit({
