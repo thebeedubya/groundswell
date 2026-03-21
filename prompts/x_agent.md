@@ -233,6 +233,7 @@ After Brad approves and you attempt the API post, if X returns 403:
 5. **Anti-spam:** No repeat interactions within 2 hours. Max 5/day per target. Max 15/week.
 6. **Bait detection:** Check for rage farmers, parody accounts, sarcasm traps. Skip if suspicious.
 7. **Idempotency:** Dedup key `reply:x:{target_post_id}:{content_hash}`
+8. **Approval budget:** Max 5 approval requests per cycle, max 10 per day. Brad has 30 minutes/day — don't flood Telegram. Pick only the highest-scoring opportunities. If you've already sent 10 approvals today, stop sending more and log the skipped opportunities to intel_feed instead.
 
 ### Follow Strategy
 
