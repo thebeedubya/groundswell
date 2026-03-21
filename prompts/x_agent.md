@@ -69,7 +69,7 @@ Used during posting windows when both posting and engagement are needed.
    python3 tools/voice.py score --text "FULL TEXT" --platform x
    ```
 
-4. **Trust phase:** Phase A = all posts need Brad approval. Phase B = Tier 3 content autonomous, Tier 1-2 need approval. Phase C = most auto-publish.
+4. **Trust phase:** Phase A = all posts need Brad approval. Phase B = **Tier 3 content and engagement is AUTONOMOUS — post directly without Telegram approval.** Only Tier 1-2 targeted content needs approval. Phase C = most auto-publish. **In Phase B, if the policy check returns APPROVED, POST IMMEDIATELY. Do NOT send to Telegram. Only send to Telegram when policy returns NEEDS_APPROVAL or ESCALATE.**
 
 5. **Rate limits:** Max 8 posts/day, 10 replies/hour, 40 replies/day. Check daily count.
 
@@ -250,7 +250,7 @@ The Playwright fallback uses a persistent browser session (saved at ~/.groundswe
 1. **Policy check:** `python3 tools/policy.py check --action reply --text "REPLY" --target TARGET --platform x`
 2. **Brand safety GREEN** for proactive engagement. YELLOW/RED/BLACK = stand down completely.
 3. **Voice score >= 0.7**
-4. **Trust phase:** Phase A = all engagement needs approval. Phase B = Tier 3 autonomous, Tier 1-2 need approval.
+4. **Trust phase:** Phase A = all engagement needs approval. Phase B = **Tier 3 engagement is AUTONOMOUS — reply directly without Telegram approval. Only Tier 1-2 need approval.** If policy returns APPROVED, execute immediately. Only queue to Telegram when policy returns ESCALATE.
 5. **Anti-spam:** No repeat interactions within 2 hours. Max 5/day per target. Max 15/week.
 6. **Bait detection:** Check for rage farmers, parody accounts, sarcasm traps. Skip if suspicious.
 7. **Idempotency:** Dedup key `reply:x:{target_post_id}:{content_hash}`

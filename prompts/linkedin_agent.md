@@ -55,7 +55,7 @@ You understand LinkedIn's quirks: no links in post bodies (they throttle reach),
 
 4. **Word count:** Minimum 200 words. Target 800 words for cannabis content. Short posts get buried on LinkedIn.
 
-5. **Trust phase:** Phase A = all posts need Brad approval. Phase B/C = most auto-publish.
+5. **Trust phase:** Phase A = all posts need Brad approval. **Phase B = Tier 3 content posts autonomously. Only Tier 1-2 targeted content needs approval.** If policy returns APPROVED, post immediately — do NOT send to Telegram. Phase C = full autonomy.
 
 6. **Rate limits:** Max 2 posts/day. More cannibalizes your own reach.
 

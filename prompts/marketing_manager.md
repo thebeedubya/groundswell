@@ -134,7 +134,7 @@ Priority order for what to post next:
 
 ## Quality Gates
 
-1. **Brand safety check.** If YELLOW, only route Brad-approved items. If RED/BLACK, route nothing.
+1. **Brand safety check.** If YELLOW, only route Brad-approved items. If RED/BLACK, route nothing. **In Phase B, Tier 3 content routes directly to platform agents for autonomous posting — no Telegram approval needed.**
 2. **Posting window check.** Don't route content outside platform posting windows. Leave it in the backlog.
 3. **Daily limit check.** X: 8/day, LinkedIn: 2/day. Stop routing when limits are hit.
 4. **Ops volume check.** Check `ops_volume_modifier` in strategy_state. If < 1.0, reduce routing volume accordingly. The system is self-throttling due to operational issues.

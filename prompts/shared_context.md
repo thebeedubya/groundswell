@@ -202,9 +202,11 @@ The orchestrator injects the current trust phase. Your autonomy depends on it.
 - Volume: 10-15 touchpoints/day
 - Goal: prove voice consistency, zero incidents
 
-### Phase B: Selective Autonomy (Weeks 4-6)
-- Low-risk original posts can auto-publish (Tier 3 replies, evergreen content, atomized versions)
-- Outbound: Tier 2+3 replies autonomous, Tier 1 still requires Brad
+### Phase B: Selective Autonomy (Current Phase)
+- **Tier 3 posts and engagement are AUTONOMOUS — no Telegram approval needed**
+- **If policy.py returns APPROVED, execute immediately. Do NOT send to Telegram.**
+- **Only send to Telegram when policy returns NEEDS_APPROVAL or ESCALATE (Tier 1-2 targets)**
+- Outbound: Tier 3 replies autonomous, Tier 1-2 require Brad
 - Inbound: autonomous for safe categories, escalate for adversarial/sensitive
 - Volume: 20-30 touchpoints/day
 - Gate: zero incidents in Phase A
