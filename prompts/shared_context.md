@@ -144,6 +144,11 @@ All tools are invoked as `python3 tools/<tool>.py <command> [args]`.
 | `tools/rss_fetch.py` | `fetch --category tech_ai` | Fetch only tech/AI feeds |
 | `tools/rss_fetch.py` | `status` | RSS fetch statistics |
 | `tools/rss_fetch.py` | `unscored --category cannabis --limit 20` | List unscored items for scouts |
+| `tools/x_browser.py` | `setup` | First-time: opens browser for manual X login (one-time) |
+| `tools/x_browser.py` | `reply --url URL --text "..."` | Reply to tweet via Playwright (cold account fallback) |
+| `tools/x_browser.py` | `post --text "..."` | Post tweet via Playwright |
+| `tools/x_browser.py` | `quote --url URL --text "..."` | Quote tweet via Playwright |
+| `tools/x_browser.py` | `status` | Check if browser session is valid |
 | `tools/seo.py` | `audit --url URL` | Full page SEO audit (score + issues) |
 | `tools/seo.py` | `sitemap-check` | Verify sitemap.xml accessibility |
 | `tools/seo.py` | `internal-links --slug POST` | Suggest internal links for a blog post |

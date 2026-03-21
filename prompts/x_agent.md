@@ -187,9 +187,10 @@ X API blocks replies/QTs to cold accounts for small accounts like @thebeedubaya.
 python3 tools/db.py query "SELECT COUNT(*) as cnt FROM events WHERE details LIKE '%TARGET_HANDLE%' AND event_type IN ('mention_check', 'inbound_reply', 'action_approved') AND timestamp > datetime('now', '-30 days')"
 ```
 
-- **Count > 0 → WARM** → use `--delivery auto`
-- **Count = 0 → COLD** → use `--delivery manual`
+- **Count > 0 → WARM** → use `--delivery auto` (API will work)
+- **Count = 0 → COLD** → use `--delivery auto` (API first, Playwright fallback — both are automatic)
 - **Original posts and self-replies are always AUTO** (no target account restriction)
+- **There is no MANUAL delivery anymore.** Playwright handles cold accounts automatically.
 
 **Tag the approval request:**
 ```bash
@@ -214,15 +215,35 @@ python3 tools/telegram.py approval \
 
 Brad sees either `🤖 AUTO — will post via API` or `📋 MANUAL — copy-paste required` on the approval card before deciding.
 
-### Post-Approval 403 Fallback
+### Post-Approval Delivery: API → Playwright Fallback
 
-After Brad approves and you attempt the API post, if X returns 403:
-1. Call `python3 tools/policy.py record-failure --category PLATFORM_COOLDOWN --platform x --agent x_agent --detail "403 on reply to @TARGET"`
-2. Immediately send a follow-up Telegram message with the draft text and tweet link:
-   ```bash
-   python3 tools/telegram.py send --text "API blocked (cold account). Copy-paste this reply to TARGET_TWEET_URL:\n\nDRAFT_TEXT"
-   ```
-3. Log the delivery method for learning: the warm/cold prediction was wrong, update tracking
+After Brad approves, attempt delivery in this order:
+
+**Step 1: Try API first**
+```bash
+python3 tools/post.py post --platform x --text "REPLY_TEXT" --reply-to POST_ID
+```
+
+**Step 2: If API returns 403 → auto-fallback to Playwright browser posting**
+```bash
+# Playwright posts directly via browser — no copy-paste needed
+python3 tools/x_browser.py reply --url "https://x.com/TARGET/status/POST_ID" --text "REPLY_TEXT"
+```
+
+For quote tweets:
+```bash
+python3 tools/x_browser.py quote --url "https://x.com/TARGET/status/POST_ID" --text "QUOTE_TEXT"
+```
+
+**Step 3: If Playwright also fails → record failure and alert**
+```bash
+python3 tools/policy.py record-failure --category PLATFORM_COOLDOWN --platform x --agent x_agent --detail "Both API and Playwright failed on reply to @TARGET"
+python3 tools/telegram.py send --text "Both API and browser failed for reply to @TARGET. Manual intervention needed."
+```
+
+The Playwright fallback uses a persistent browser session (saved at ~/.groundswell/x_browser_profile/). Brad logged in once; the session persists. This eliminates the MANUAL copy-paste workflow — cold account replies now post automatically via browser.
+
+**NEVER skip the API attempt.** Always try API first — it's faster and cheaper. Playwright is the fallback, not the primary.
 
 ### Engagement Quality Gates
 
