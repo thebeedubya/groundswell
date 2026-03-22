@@ -19,7 +19,7 @@
     "priority": 2,
     "format": "single",
     "content_mix": "social_proof",
-    "text": "Commit of the Day: Built a 7-agent social growth engine in one evening.\n\n7 agent prompts. 14 Python tools. 28 tests. 11,000 lines.\n\nThe agents don't have code. They have PROMPTS. The entire Publisher agent is a markdown file. The orchestrator reads a schedule from SQLite, spawns the right agents, and exits.\n\nI've been building systems like this for 44 years. This is the first time the systems build themselves back.",
+    "text": "Commit of the Day: Built a 24-agent social growth engine in one evening.\n\n24 agent prompts. 17 Python tools. 28 tests. 11,000 lines.\n\nThe agents don't have code. They have PROMPTS. The entire Publisher agent is a markdown file. The orchestrator reads a schedule from SQLite, spawns the right agents, and exits.\n\nI've been building systems like this for 44 years. This is the first time the systems build themselves back.",
     "created_at": "2026-03-16T08:00:00Z",
     "notes": "Commit of the day. No non-engineer framing. Emphasizes 44-year builder arc."
   },
@@ -41,7 +41,7 @@
     "priority": 4,
     "format": "single",
     "content_mix": "engagement_bait",
-    "text": "Hot take: If you're paying for API calls to run AI agents, you're doing it wrong.\n\nMy 7-agent system runs on a $200/month Claude Max subscription. Full Opus reasoning on every decision. No per-call costs. No token counting. No budget anxiety.\n\n$222/month total. $200 Claude + $22 ElevenLabs. That's the entire cost of a 7-agent autonomous operation.\n\nI'm teaching my team to build on the same platform. The force multiplier isn't me building alone \u2014 it's everyone building.",
+    "text": "Hot take: If you're paying for API calls to run AI agents, you're doing it wrong.\n\nMy 24-agent system runs on a $200/month Claude Max subscription. Full Opus reasoning on every decision. No per-call costs. No token counting. No budget anxiety.\n\n$222/month total. $200 Claude + $22 ElevenLabs. That's the entire cost of a 24-agent autonomous operation.\n\nI'm teaching my team to build on the same platform. The force multiplier isn't me building alone \u2014 it's everyone building.",
     "created_at": "2026-03-16T08:00:00Z",
     "notes": "Contrarian hook. Adds the teaching-teams angle."
   },
@@ -112,7 +112,7 @@
     "voice_score": 0.8,
     "newsjack": true,
     "window_closes": "2026-03-21T00:00:00Z",
-    "text": "Everyone's talking about harness engineering. The frameworks. The guardrails. The on-the-loop patterns.\n\nAll of it is developer-centric.\n\nNobody is asking: who builds the operator harness?\n\nOpenAI just acquired Astral \u2014 uv, ruff, ty \u2014 to build the developer harness into Codex. That's the developer workflow. Code \u2192 lint \u2192 test \u2192 deploy.\n\nThe operator workflow is different. Signal \u2192 decision \u2192 compliance \u2192 execution. My 7-agent system runs that loop autonomously. No code in the loop. Prompts, SQLite, and exit-and-reinvoke architecture.\n\nThe developer harness is getting built by billion-dollar acquisitions. The operator harness is getting built by operators who can't wait.\n\nI'm one of them.",
+    "text": "Everyone's talking about harness engineering. The frameworks. The guardrails. The on-the-loop patterns.\n\nAll of it is developer-centric.\n\nNobody is asking: who builds the operator harness?\n\nOpenAI just acquired Astral \u2014 uv, ruff, ty \u2014 to build the developer harness into Codex. That's the developer workflow. Code \u2192 lint \u2192 test \u2192 deploy.\n\nThe operator workflow is different. Signal \u2192 decision \u2192 compliance \u2192 execution. My 24-agent system runs that loop autonomously. No code in the loop. Prompts, SQLite, and exit-and-reinvoke architecture.\n\nThe developer harness is getting built by billion-dollar acquisitions. The operator harness is getting built by operators who can't wait.\n\nI'm one of them.",
     "created_at": "2026-03-19T18:15:00Z",
     "notes": "Newsjack: harness engineering trend + OpenAI/Astral acquisition. Claims 'operator harness' sub-framing. Window ~48hrs.",
     "posted_at": "2026-03-20T12:18:22.034356+00:00",
@@ -130,7 +130,7 @@
     "voice_score": 0.8,
     "newsjack": true,
     "window_closes": "2026-03-21T00:00:00Z",
-    "text": "Mollick calls it AI psychosis \u2014 professionals who finally get AI and disappear into intense, sleepless, impossibly complex projects with only AI for company.\n\nI've been there. Built a 7-agent autonomous system in a single evening. 14 Python tools. 11,000 lines. Couldn't stop.\n\nThe difference: I came out the other side with infrastructure, not burnout.\n\nThe cure isn't slowing down. It's building systems instead of sprinting alone. Exit-and-reinvoke. Let the agents forget. Put state in the database, not your head.\n\nMollick is right that people need guides through this phase. I'll be that guide for operators.",
+    "text": "Mollick calls it AI psychosis \u2014 professionals who finally get AI and disappear into intense, sleepless, impossibly complex projects with only AI for company.\n\nI've been there. Built a 24-agent autonomous system in a single evening. 17 Python tools. 11,000 lines. Couldn't stop.\n\nThe difference: I came out the other side with infrastructure, not burnout.\n\nThe cure isn't slowing down. It's building systems instead of sprinting alone. Exit-and-reinvoke. Let the agents forget. Put state in the database, not your head.\n\nMollick is right that people need guides through this phase. I'll be that guide for operators.",
     "created_at": "2026-03-19T18:15:00Z",
     "notes": "Newsjack: Mollick AI psychosis framing. Brad as the guide. Engagement bait angle.",
     "posted_at": "2026-03-20T13:08:00.545723+00:00",
@@ -285,7 +285,7 @@
     "platform": "x",
     "priority": 0,
     "format": "single",
-    "text": "LangChain just launched Fleet \u2014 no-code agents for every team. The pitch: you don't need engineers to build AI agents anymore.\n\nI've heard this before. Every year since 2015. Drag-and-drop workflows. Visual builders. The promise that complexity is one abstraction away from being easy.\n\nHere's what I know from 44 years of building: the abstraction never eliminates the complexity. It just moves it.\n\nNo-code agent platforms solve the building problem. They don't solve the operating problem. Who monitors the agent at 2am? Who debugs the hallucination that slipped past the guardrails? Who owns the compliance exposure when the agent says the wrong thing to a customer?\n\nI built my 7-agent system from scratch. Python, prompts, SQLite. Not because I love yak-shaving \u2014 because I need to own every decision boundary.\n\nIn cannabis, a bad agent decision isn't a bad customer experience. It's a regulatory violation.\n\nBuild vs buy isn't about capability. It's about accountability. If you can't explain every decision your agent made, you don't have an AI system. You have a liability.",
+    "text": "LangChain just launched Fleet \u2014 no-code agents for every team. The pitch: you don't need engineers to build AI agents anymore.\n\nI've heard this before. Every year since 2015. Drag-and-drop workflows. Visual builders. The promise that complexity is one abstraction away from being easy.\n\nHere's what I know from 44 years of building: the abstraction never eliminates the complexity. It just moves it.\n\nNo-code agent platforms solve the building problem. They don't solve the operating problem. Who monitors the agent at 2am? Who debugs the hallucination that slipped past the guardrails? Who owns the compliance exposure when the agent says the wrong thing to a customer?\n\nI built my 24-agent system from scratch. Python, prompts, SQLite. Not because I love yak-shaving \u2014 because I need to own every decision boundary.\n\nIn cannabis, a bad agent decision isn't a bad customer experience. It's a regulatory violation.\n\nBuild vs buy isn't about capability. It's about accountability. If you can't explain every decision your agent made, you don't have an AI system. You have a liability.",
     "created_at": "2026-03-19T22:39:50.163646+00:00",
     "content_mix": "value_teaching",
     "theme": "ai_operator",
@@ -359,7 +359,7 @@
     "platform": "threads",
     "priority": 4,
     "format": "single",
-    "text": "Most AI agent tutorials start with: choose your framework.\n\nWrong starting point.\n\nStart with: what decision does this agent need to make?\n\nMy 7-agent system doesn't use LangChain, CrewAI, or AutoGen. It uses Python, prompts, and SQLite. Not because frameworks are bad. Because I needed to own every decision boundary.\n\nWhen an agent decides whether to post, reply, or stay silent -- I need to know exactly why. Not framework-why. Architecture-why.\n\nThe agent reads state from SQLite. Evaluates against rules I wrote. Makes a decision. Writes state. Exits.\n\nNo hidden abstractions. No magic. No framework opinions about how my agents should think.\n\n44 years of building systems taught me: you can use someone else's tools. Never use someone else's judgment.",
+    "text": "Most AI agent tutorials start with: choose your framework.\n\nWrong starting point.\n\nStart with: what decision does this agent need to make?\n\nMy 24-agent system doesn't use LangChain, CrewAI, or AutoGen. It uses Python, prompts, and SQLite. Not because frameworks are bad. Because I needed to own every decision boundary.\n\nWhen an agent decides whether to post, reply, or stay silent -- I need to know exactly why. Not framework-why. Architecture-why.\n\nThe agent reads state from SQLite. Evaluates against rules I wrote. Makes a decision. Writes state. Exits.\n\nNo hidden abstractions. No magic. No framework opinions about how my agents should think.\n\n44 years of building systems taught me: you can use someone else's tools. Never use someone else's judgment.",
     "created_at": "2026-03-20T03:50:31.918222+00:00",
     "content_mix": "value_teaching",
     "theme": "ai_operator",
@@ -373,7 +373,7 @@
     "platform": "x",
     "priority": 5,
     "format": "single",
-    "text": "3 weeks into building in public. Here's the scorecard.\n\n52 followers on day 1. Running the count now.\n\nMy AI agents posted a manifesto that got my identity wrong. I corrected it publicly. The correction outperformed the manifesto.\n\nBuilt a 7-agent system in one evening. 14 Python tools. 11,000 lines. The agents run 24/7. I sleep.\n\nOne compliance workflow went from 4 hours to 11 minutes. That's not a benchmark. That's production.\n\nZero paid followers. Zero growth hacks. Just an operator and his agents versus the algorithm.\n\nThe honest truth: I don't know if this works yet. Building in public means sharing the scorecard when the numbers are still small.\n\nFollow along. The data will speak for itself.",
+    "text": "3 weeks into building in public. Here's the scorecard.\n\n52 followers on day 1. Running the count now.\n\nMy AI agents posted a manifesto that got my identity wrong. I corrected it publicly. The correction outperformed the manifesto.\n\nBuilt a 24-agent system in one evening. 17 Python tools. 11,000 lines. The agents run 24/7. I sleep.\n\nOne compliance workflow went from 4 hours to 11 minutes. That's not a benchmark. That's production.\n\nZero paid followers. Zero growth hacks. Just an operator and his agents versus the algorithm.\n\nThe honest truth: I don't know if this works yet. Building in public means sharing the scorecard when the numbers are still small.\n\nFollow along. The data will speak for itself.",
     "created_at": "2026-03-20T03:50:31.918222+00:00",
     "content_mix": "social_proof",
     "theme": "founder_operator",
@@ -391,9 +391,11 @@
     "created_at": "2026-03-20T08:14:00+00:00",
     "content_mix": "social_proof",
     "theme": "ai_operator",
-    "status": "ready",
+    "status": "posted",
+    "posted_at": "2026-03-22T12:35:45Z",
+    "post_id": "18096613042978970",
     "voice_score": 0.8,
-    "notes": "Threads AI operator social proof. From blog post 'My Agent Network Went Dark.' Real failure story with specific numbers."
+    "notes": "Threads AI operator social proof. From blog post 'My Agent Network Went Dark.' Real failure story with specific numbers. Trimmed to 494 chars for Threads 500-char limit."
   },
   {
     "id": "threads-199-001",
@@ -429,7 +431,7 @@
     "platform": "threads",
     "priority": 6,
     "format": "single",
-    "text": "3am and my AI agents are running. I'm not.\n\nThat's supposed to be the pitch, right? 'Your agents work while you sleep.'\n\nTuesday night they worked for about 4 hours. Then they died because an OAuth token expired and nobody told me until I checked my phone at 8am.\n\nI fixed it in 25 minutes. Then I wrote a blog post about it. Because building in public means showing when the robots break too.\n\nThe funniest part: I have 7 agents and none of them could tell me they were broken.",
+    "text": "3am and my AI agents are running. I'm not.\n\nThat's supposed to be the pitch, right? 'Your agents work while you sleep.'\n\nTuesday night they worked for about 4 hours. Then they died because an OAuth token expired and nobody told me until I checked my phone at 8am.\n\nI fixed it in 25 minutes. Then I wrote a blog post about it. Because building in public means showing when the robots break too.\n\nThe funniest part: I have 24 agents and none of them could tell me they were broken.",
     "created_at": "2026-03-20T08:14:00+00:00",
     "content_mix": "engagement_bait",
     "theme": "personal",
@@ -443,7 +445,7 @@
     "platform": "linkedin",
     "priority": 5,
     "format": "linkedin_post",
-    "text": "Tuesday night my 7-agent system went dark for 9 hours. An OAuth token expired at 11pm. The orchestrator retried 1,557 times. No alert fired. No fallback kicked in.\n\nWhile the system was down, 19 draft replies piled up. Responses to Simon Willison, Ethan Mollick, Andrej Karpathy, Dan Shipper. High-value engagement targets. Time-sensitive conversations.\n\nBy the time I got back online, those conversation windows had closed. The engagement window for a reply is 2-4 hours. I lost 9 hours of them.\n\nThe fix was 25 minutes of work. Exponential backoff, Telegram alerting, long-lived token. Infrastructure I should have built on day one.\n\nHere's the uncomfortable truth about building AI agent systems: the models are the easy part. The hard part is auth token refresh logic at midnight on a Mac Mini.\n\nThat's the real gap in 'AI Operator.' Not model capability. Operational resilience.\n\nToday the system is more resilient than yesterday. Tomorrow something else will break. That's the job.",
+    "text": "Tuesday night my 24-agent system went dark for 9 hours. An OAuth token expired at 11pm. The orchestrator retried 1,557 times. No alert fired. No fallback kicked in.\n\nWhile the system was down, 19 draft replies piled up. Responses to Simon Willison, Ethan Mollick, Andrej Karpathy, Dan Shipper. High-value engagement targets. Time-sensitive conversations.\n\nBy the time I got back online, those conversation windows had closed. The engagement window for a reply is 2-4 hours. I lost 9 hours of them.\n\nThe fix was 25 minutes of work. Exponential backoff, Telegram alerting, long-lived token. Infrastructure I should have built on day one.\n\nHere's the uncomfortable truth about building AI agent systems: the models are the easy part. The hard part is auth token refresh logic at midnight on a Mac Mini.\n\nThat's the real gap in 'AI Operator.' Not model capability. Operational resilience.\n\nToday the system is more resilient than yesterday. Tomorrow something else will break. That's the job.",
     "created_at": "2026-03-20T08:14:00+00:00",
     "content_mix": "social_proof",
     "theme": "founder_operator",
@@ -555,7 +557,7 @@
     "platform": "x",
     "priority": 5,
     "format": "single",
-    "text": "Everyone's debating which AI model is best. Meanwhile I'm over here running 7 agents on a 500 dollar monthly budget across cannabis operations, social growth, and compliance. The model matters less than the architecture. The architecture matters less than the judgment about what to automate. That judgment comes from 25 years of operating, not from a weekend hackathon.",
+    "text": "Everyone's debating which AI model is best. Meanwhile I'm over here running 24 agents on a 500 dollar monthly budget across cannabis operations, social growth, and compliance. The model matters less than the architecture. The architecture matters less than the judgment about what to automate. That judgment comes from 25 years of operating, not from a weekend hackathon.",
     "created_at": "2026-03-20T16:32:22.211462+00:00",
     "content_mix": "engagement_bait"
   },
@@ -650,7 +652,7 @@
     "format": "single",
     "content_mix": "social_proof",
     "status": "ready",
-    "text": "Building in public update: Week 2 of running a 7-agent system on my social presence.\n\nWhat I didn't expect: the hardest part isn't the AI. It's the feedback loops.\n\nWhen an agent makes a mistake \u2014 wrong tone, bad timing, off-brand reference \u2014 you need a system that catches it, logs it, and teaches every other agent to avoid the same mistake.\n\nI built that system in 48 hours. It's 200 lines of Python and a SQLite table.\n\nThe lesson: agent infrastructure isn't about making agents smarter. It's about making failures visible and recoverable.\n\nSame principle I used building enterprise systems at Riverbed. Same principle that works at 7 people with an AI army. Good architecture scales in both directions.",
+    "text": "Building in public update: Week 2 of running a 24-agent system on my social presence.\n\nWhat I didn't expect: the hardest part isn't the AI. It's the feedback loops.\n\nWhen an agent makes a mistake \u2014 wrong tone, bad timing, off-brand reference \u2014 you need a system that catches it, logs it, and teaches every other agent to avoid the same mistake.\n\nI built that system in 48 hours. It's 200 lines of Python and a SQLite table.\n\nThe lesson: agent infrastructure isn't about making agents smarter. It's about making failures visible and recoverable.\n\nSame principle I used building enterprise systems at Riverbed. Same principle that works at 7 people with an AI army. Good architecture scales in both directions.",
     "voice_score": 0.8,
     "created_at": "2026-03-20T14:00:00Z",
     "notes": "Founder/operator + Threads gap fill. Build-in-public social proof. Connects FORGE feedback loops to enterprise experience."
@@ -759,7 +761,7 @@
     "platform": "x",
     "priority": 4,
     "format": "single",
-    "text": "Your AI agent doesn't need a bigger context window. It needs less context.\n\nI run 7 agents on Groundswell. Every cycle, the orchestrator spawns, does its job, and exits. Fresh context. Zero accumulated drift.\n\nAll state lives in SQLite. All decisions get logged. When the next cycle starts, it reads what matters and ignores what doesn't.\n\nI call it exit-and-reinvoke. It's the opposite of what most agent builders do \u2014 and it's why my system hasn't hallucinated in production once.\n\nThe architecture pattern is 40 years old. I used to build Novell NetWare systems the same way. Good design doesn't expire.",
+    "text": "Your AI agent doesn't need a bigger context window. It needs less context.\n\nI run 24 agents on Groundswell. Every cycle, the orchestrator spawns, does its job, and exits. Fresh context. Zero accumulated drift.\n\nAll state lives in SQLite. All decisions get logged. When the next cycle starts, it reads what matters and ignores what doesn't.\n\nI call it exit-and-reinvoke. It's the opposite of what most agent builders do \u2014 and it's why my system hasn't hallucinated in production once.\n\nThe architecture pattern is 40 years old. I used to build Novell NetWare systems the same way. Good design doesn't expire.",
     "created_at": "2026-03-21T09:40:35.967337+00:00",
     "content_mix": "value_teaching"
   },
@@ -809,7 +811,7 @@
     "platform": "x",
     "priority": 3,
     "format": "single",
-    "text": "Hot take: Most AI agent frameworks are solving problems that don't exist in production.\n\nLangChain, CrewAI, AutoGen \u2014 they all assume you need a framework to coordinate agents.\n\nMy 7-agent system uses: markdown prompts, a SQLite database, and a bash script that spawns Claude Code sessions.\n\nNo framework. No SDK. No dependency tree.\n\nThe agents coordinate through the database. State in, reasoning out, exit. Next agent reads the state and continues.\n\nI've shipped more production agent infrastructure with this architecture than most teams ship with their entire stack.",
+    "text": "Hot take: Most AI agent frameworks are solving problems that don't exist in production.\n\nLangChain, CrewAI, AutoGen \u2014 they all assume you need a framework to coordinate agents.\n\nMy 24-agent system uses: markdown prompts, a SQLite database, and a bash script that spawns Claude Code sessions.\n\nNo framework. No SDK. No dependency tree.\n\nThe agents coordinate through the database. State in, reasoning out, exit. Next agent reads the state and continues.\n\nI've shipped more production agent infrastructure with this architecture than most teams ship with their entire stack.",
     "created_at": "2026-03-21T09:40:44.412716+00:00",
     "content_mix": "engagement_bait"
   },
@@ -819,7 +821,7 @@
     "platform": "linkedin",
     "priority": 4,
     "format": "single",
-    "text": "The thing nobody tells you about building with AI agents: the surface area doesn't shrink. It multiplies.\n\nI run 7 agents, 14 tools, and 28 tests. That's the infrastructure of a small engineering team. Except there's one person operating it.\n\nAt 1am I'm debugging a daemon that auto-persists memories across two machines named after cannabis strains. At 7am I'm reviewing the content my agents wrote while I slept.\n\nThe productivity gain is real. But so is the ops load. Plan for both.",
+    "text": "The thing nobody tells you about building with AI agents: the surface area doesn't shrink. It multiplies.\n\nI run 24 agents, 14 tools, and 28 tests. That's the infrastructure of a small engineering team. Except there's one person operating it.\n\nAt 1am I'm debugging a daemon that auto-persists memories across two machines named after cannabis strains. At 7am I'm reviewing the content my agents wrote while I slept.\n\nThe productivity gain is real. But so is the ops load. Plan for both.",
     "created_at": "2026-03-21T09:40:46.218118+00:00",
     "content_mix": "value_teaching"
   },
@@ -839,7 +841,7 @@
     "platform": "x",
     "priority": 5,
     "format": "single",
-    "text": "Karpathy says he stopped fighting agent code quality. That agents bloat abstractions and copy-paste code blocks.\n\nRespectfully disagree with the premise.\n\nWe run 7 agents in production. They follow instructions precisely because the harness is designed to enforce it. CLAUDE.md files. Policy gates. Idempotency constraints. Voice scoring on every output.\n\nThe issue isn't that agents don't listen. It's that most agent architectures don't have enough structure for them to listen TO.\n\nBuild the spec. Build the guardrails. Build the feedback loop. Then the agents perform.",
+    "text": "Karpathy says he stopped fighting agent code quality. That agents bloat abstractions and copy-paste code blocks.\n\nRespectfully disagree with the premise.\n\nWe run 24 agents in production. They follow instructions precisely because the harness is designed to enforce it. CLAUDE.md files. Policy gates. Idempotency constraints. Voice scoring on every output.\n\nThe issue isn't that agents don't listen. It's that most agent architectures don't have enough structure for them to listen TO.\n\nBuild the spec. Build the guardrails. Build the feedback loop. Then the agents perform.",
     "created_at": "2026-03-21T13:51:27.085652+00:00",
     "content_mix": "engagement_bait"
   },
@@ -939,7 +941,7 @@
     "platform": "threads",
     "priority": 5,
     "format": "single",
-    "text": "Saturday morning. 7 agents running my social presence. 3 databases syncing. A memory system with 14,000 chunks. And I'm sitting here debugging a JSON schema because one agent decided 'text' should be a list instead of a string.\n\n44 years of building systems. The tools change. The debugging doesn't.\n\nThe real flex isn't that I built an AI agent army. It's that I still find the bugs myself.",
+    "text": "Saturday morning. 24 agents running my social presence. 3 databases syncing. A memory system with 14,000 chunks. And I'm sitting here debugging a JSON schema because one agent decided 'text' should be a list instead of a string.\n\n44 years of building systems. The tools change. The debugging doesn't.\n\nThe real flex isn't that I built an AI agent army. It's that I still find the bugs myself.",
     "created_at": "2026-03-21T18:15:38.632044+00:00",
     "content_mix": "social_proof"
   },
@@ -949,7 +951,7 @@
     "platform": "threads",
     "priority": 5,
     "format": "single",
-    "text": "Week 3 of running a 7-agent system autonomously.\n\nWhat I didn't expect: the agents are teaching me.\n\nMy Creator agent flagged that my content identity was drifting \u2014 too much AI Operator, not enough of the cannabis proof vertical that makes my story unique. It was right. I'd been writing about agents instead of showing what agents DO.\n\nWhen your system starts correcting your blind spots, you've crossed a threshold. That's not automation. That's operational intelligence.",
+    "text": "Week 3 of running a 24-agent system autonomously.\n\nWhat I didn't expect: the agents are teaching me.\n\nMy Creator agent flagged that my content identity was drifting \u2014 too much AI Operator, not enough of the cannabis proof vertical that makes my story unique. It was right. I'd been writing about agents instead of showing what agents DO.\n\nWhen your system starts correcting your blind spots, you've crossed a threshold. That's not automation. That's operational intelligence.",
     "created_at": "2026-03-21T18:15:39.669338+00:00",
     "content_mix": "social_proof"
   },
@@ -989,7 +991,7 @@
     "platform": "x",
     "priority": 1,
     "format": "single",
-    "text": "Tinygrad just shipped the Tinybox. An offline AI box running 120B parameters on local hardware.\n\nI run 7 agents on $500/month. Every inference call I can move off the cloud is money back in the operation.\n\nThe per-call API tax is the single biggest threat to multi-agent economics. Hardware like this is how operators break free.\n\nI've been saying local-first AI ops is the play. Now you can buy the proof for less than a year of API bills.",
+    "text": "Tinygrad just shipped the Tinybox. An offline AI box running 120B parameters on local hardware.\n\nI run 24 agents on $500/month. Every inference call I can move off the cloud is money back in the operation.\n\nThe per-call API tax is the single biggest threat to multi-agent economics. Hardware like this is how operators break free.\n\nI've been saying local-first AI ops is the play. Now you can buy the proof for less than a year of API bills.",
     "created_at": "2026-03-22T00:17:40.938678+00:00",
     "content_mix": "value_teaching"
   },
@@ -999,7 +1001,7 @@
     "platform": "linkedin",
     "priority": 1,
     "format": "single",
-    "text": "Tinygrad just dropped the Tinybox \u2014 an offline device running 120B parameters on local hardware.\n\nHere is why this matters for anyone running AI agents in production:\n\nI operate a 7-agent system on a $500/month budget. Orchestrator, publisher, engager, analyst, creator, scout \u2014 all running on Claude. Every inference call has a cost. At scale, those costs become the constraint, not the technology.\n\nLocal hardware changes that equation entirely. When your routine agent operations \u2014 content scoring, policy checks, voice matching \u2014 can run on a box sitting under your desk, you reclaim the margin that makes multi-agent systems viable for small operators.\n\nThis is not about replacing cloud AI. It is about running the right workloads in the right place. The strategic calls stay on Opus. The routine grind moves local.\n\nThe era of renting every inference call is ending. Operators who figure out the hybrid model first will have a structural cost advantage that compounds over time.",
+    "text": "Tinygrad just dropped the Tinybox \u2014 an offline device running 120B parameters on local hardware.\n\nHere is why this matters for anyone running AI agents in production:\n\nI operate a 24-agent system on a $500/month budget. Orchestrator, publisher, engager, analyst, creator, scout \u2014 all running on Claude. Every inference call has a cost. At scale, those costs become the constraint, not the technology.\n\nLocal hardware changes that equation entirely. When your routine agent operations \u2014 content scoring, policy checks, voice matching \u2014 can run on a box sitting under your desk, you reclaim the margin that makes multi-agent systems viable for small operators.\n\nThis is not about replacing cloud AI. It is about running the right workloads in the right place. The strategic calls stay on Opus. The routine grind moves local.\n\nThe era of renting every inference call is ending. Operators who figure out the hybrid model first will have a structural cost advantage that compounds over time.",
     "created_at": "2026-03-22T00:17:42.198929+00:00",
     "content_mix": "value_teaching"
   },
@@ -1049,8 +1051,172 @@
     "platform": "linkedin",
     "priority": 3,
     "format": "single",
-    "text": "I built a content system that writes, scores, policy-checks, and queues posts while I sleep.\n\nIt has 7 agents, 14 tools, and a SQLite database that holds the entire state.\n\nThe part that took the longest to build was not the AI. It was the guardrails.\n\nPolicy gates. Voice scoring. Brand safety checks. Posting windows. Cooldowns. Rate limits. Human approval via Telegram.\n\nThe AI is the easy part. The judgment layer is where the real engineering lives.\n\nAnyone selling you an AI agent framework without a guardrail story is selling you a demo, not a production system.",
+    "text": "I built a content system that writes, scores, policy-checks, and queues posts while I sleep.\n\nIt has 24 agents, 14 tools, and a SQLite database that holds the entire state.\n\nThe part that took the longest to build was not the AI. It was the guardrails.\n\nPolicy gates. Voice scoring. Brand safety checks. Posting windows. Cooldowns. Rate limits. Human approval via Telegram.\n\nThe AI is the easy part. The judgment layer is where the real engineering lives.\n\nAnyone selling you an AI agent framework without a guardrail story is selling you a demo, not a production system.",
     "created_at": "2026-03-22T00:18:32.231348+00:00",
+    "content_mix": "value_teaching"
+  },
+  {
+    "id": "2da7bbda",
+    "type": "cannabis_compliance_architecture",
+    "platform": "threads",
+    "priority": 5,
+    "format": "single",
+    "text": "Cannabis compliance isn't a checkbox. It's a data architecture problem.\n\nEvery state has different tracking requirements. Different reporting formats. Different deadlines. Most operators handle it with spreadsheets and prayer.\n\nWe built agents that pull from seed-to-sale systems, normalize the data, and generate reports in whatever format the state wants. Colorado format? Done. Oregon format? Same data, different template.\n\nThe insight nobody talks about: 80% of compliance failures aren't people being shady. They're data entry errors. Wrong weight. Wrong date. Transposed batch number.\n\nAgents don't fat-finger data. That's not AI hype \u2014 that's just what automation has always been good at.\n\nThe cannabis industry needs fewer consultants selling fear and more operators building systems.",
+    "created_at": "2026-03-22T06:09:15.421679+00:00",
+    "content_mix": "value_teaching",
+    "theme": "cannabis_ops"
+  },
+  {
+    "id": "0ab7812a",
+    "type": "cannabis_compliance_question",
+    "platform": "threads",
+    "priority": 5,
+    "format": "single",
+    "text": "Question for cannabis operators:\n\nWhat percentage of your team's time goes to compliance documentation vs. actual plant work?\n\nI've talked to growers spending 30-40% of their week on paperwork. Not because they're slow \u2014 because the regulatory surface area is insane.\n\nWe're building systems to flip that ratio. Free your team to do what they're actually good at.\n\nWhat's your ratio? And what's the one compliance task you'd automate first?",
+    "created_at": "2026-03-22T06:09:17.236850+00:00",
+    "content_mix": "engagement_bait",
+    "theme": "cannabis_ops"
+  },
+  {
+    "id": "b94bf980",
+    "type": "cannabis_trust_ai_compliance",
+    "platform": "linkedin",
+    "priority": 5,
+    "format": "single",
+    "text": "Cannabis operators ask me: why would I trust AI with compliance?\n\nFair question. Here's the honest answer.\n\nYou shouldn't trust AI to make compliance decisions. You should trust AI to never forget a deadline, never transpose a batch number, and never skip a required field because it's Friday afternoon.\n\nWe run compliance agents on our cannabis operations. They don't replace judgment \u2014 they replace the grind. Data collection. Format conversion. Report assembly. Cross-referencing weights against manifests.\n\nOne workflow that took our team 4 hours manually now runs in 11 minutes. Same data. Same accuracy requirements. The agent just doesn't get tired.\n\nThe hardest regulatory environment in America is where we chose to prove this works. Because if your AI system can handle cannabis compliance across multiple state frameworks, it can handle anything.\n\nThat's the point. Cannabis isn't our hobby vertical. It's our proof vertical.",
+    "created_at": "2026-03-22T06:09:19.604053+00:00",
+    "content_mix": "value_teaching",
+    "theme": "cannabis_ops"
+  },
+  {
+    "id": "1a1595e5",
+    "type": "personal_operator_silence",
+    "platform": "threads",
+    "priority": 5,
+    "format": "single",
+    "text": "Saturday morning. Coffee. Dashboard open. All agents quiet.\n\nThis is the part nobody warns you about when you build autonomous systems: the silence is unsettling.\n\nFor 25 years I managed teams by being in the room. Hallway conversations. Reading body language in standups. Knowing who's stuck before they said it.\n\nNow my team includes agents that work while I sleep. They don't ping me when they're stuck \u2014 they exit, log the error, and wait for the next cycle.\n\nI check the dashboard like I used to walk the floor. Same instinct. Different medium.\n\nBuilding in public, week 5: I'm learning to trust systems the way I used to trust people. It's harder than the code.",
+    "created_at": "2026-03-22T06:09:21.435914+00:00",
+    "content_mix": "engagement_bait",
+    "theme": "personal"
+  },
+  {
+    "id": "ffe11c73",
+    "type": "value_framework",
+    "platform": "x",
+    "priority": 3,
+    "format": "single",
+    "text": "Last week my agents needed Telegram approval for every tweet. This week they post autonomously.\n\nThe shift wasn't a feature toggle. It was earned trust.\n\nPhase 1: Every post goes through me. I read it, approve it, or kill it.\nPhase 2: Policy gate catches the obvious stuff. I review edge cases.\nPhase 3: Agents post. I audit after the fact.\n\nSame pattern every ops team uses for new hires. You don't give the keys on day one. You watch. You correct. You expand the boundary.\n\nThe difference: my agents have a written constitution, a voice scorer, and a policy engine. Most human teams operate on vibes.\n\n44 years of building teams taught me one thing: trust is architecture, not a feeling.",
+    "created_at": "2026-03-22T10:39:46.382014+00:00",
+    "content_mix": "value_teaching"
+  },
+  {
+    "id": "58c6995a",
+    "type": "build_in_public_receipt",
+    "platform": "x",
+    "priority": 4,
+    "format": "single",
+    "text": "Everyone wants to talk about AI agents. Nobody wants to talk about what happens when they fail at 2am and you don't notice until morning.\n\nMy agent network went dark for nine hours last week. No alerts. No errors. Just silence.\n\nThe fix wasn't better monitoring. The fix was designing for failure as a first-class state. Now every agent has a heartbeat. Miss two cycles, the orchestrator escalates. Miss five, it quarantines.\n\nThe boring engineering is the real engineering.",
+    "created_at": "2026-03-22T10:39:51.193274+00:00",
+    "content_mix": "social_proof"
+  },
+  {
+    "id": "faf8b5a3",
+    "type": "cannabis_infrastructure",
+    "platform": "x",
+    "priority": 4,
+    "format": "single",
+    "text": "Cannabis compliance isn't a checkbox. It's a data architecture problem.\n\nEvery state has different reporting requirements. Different formats. Different deadlines. Different APIs. And they all change every legislative session.\n\nMost operators handle this with spreadsheets and prayer. We built a system that ingests regulatory changes and propagates them through the compliance layer automatically.\n\nThe grind isn't your people. The grind is the infrastructure they're forced to work with. Fix the infrastructure, free your team.",
+    "created_at": "2026-03-22T10:39:53.933492+00:00",
+    "content_mix": "value_teaching"
+  },
+  {
+    "id": "9272a032",
+    "type": "spec_engineering_newsjack",
+    "platform": "x",
+    "priority": 2,
+    "format": "single",
+    "text": "Karpathy is right: it's spec engineering, not prompt engineering.\n\nMy entire multi-agent system runs on markdown files. CLAUDE.md. Agent prompts. Voice constitutions. Policy gates. Every one of them is a spec.\n\nThe prompt is the least interesting part. The spec is the system design. It defines boundaries, decision frameworks, failure modes, and escalation paths.\n\nI've been writing system specs since Novell NetWare. The format changed. The discipline didn't.\n\nIf your AI agent doesn't have a written constitution, you don't have an agent. You have a chatbot with delusions of grandeur.",
+    "created_at": "2026-03-22T10:39:58.298760+00:00",
+    "content_mix": "value_teaching"
+  },
+  {
+    "id": "bdfa5615",
+    "type": "build_in_public_carousel",
+    "platform": "linkedin",
+    "priority": 3,
+    "format": "single",
+    "text": "I built a LinkedIn carousel engine in one evening.\n\nNot a Canva template. A Python pipeline that generates slides from structured data, renders them with PIL, assembles a PDF, and posts via LinkedIn's document upload API.\n\nThe visual engine is 400 lines of Python. No external design tools. No manual exports. The agent writes the content, generates the slides, and queues them for posting.\n\nThis is what 'AI Operator' actually means. Not prompting ChatGPT. Building infrastructure that compounds.\n\nEvery tool I build makes the next tool cheaper to build. That's the real flywheel.",
+    "created_at": "2026-03-22T10:39:59.306969+00:00",
+    "content_mix": "social_proof"
+  },
+  {
+    "id": "05c4b768",
+    "type": "framework_contrarian",
+    "platform": "x",
+    "priority": 3,
+    "format": "single",
+    "text": "Hot take: Your AI agent framework is a liability.\n\nLangChain just shipped Deep Agents. Another framework. Another abstraction layer between you and what the model actually does.\n\nI run 24 agents on markdown files and SQLite. No framework. No SDK. No dependency chain that breaks when someone ships a minor version bump.\n\nThe best agent architecture is the one you can read in a text editor.\n\nFight me.",
+    "created_at": "2026-03-22T10:40:01.833920+00:00",
+    "content_mix": "engagement_bait"
+  },
+  {
+    "id": "54085dd5",
+    "type": "feedback_loop_build",
+    "platform": "x",
+    "priority": 3,
+    "format": "single",
+    "text": "Built a feedback loop this week that changed how I think about agent systems.\n\nBefore: Agent fails. I read logs. I fix the prompt. I hope.\nAfter: Agent fails. Policy engine records the failure category. Orchestrator injects the lesson into the next cycle's context. Agent self-corrects.\n\nThe loop is: fail -> record -> inject -> correct -> verify.\n\nTook 200 lines of Python. Should have built it week one.\n\nThe gap between a demo agent and a production agent is exactly this: production agents learn from their own mistakes.",
+    "created_at": "2026-03-22T10:40:02.854039+00:00",
+    "content_mix": "value_teaching"
+  },
+  {
+    "id": "9227c0a7",
+    "type": "personal_texture",
+    "platform": "x",
+    "priority": 5,
+    "format": "single",
+    "text": "Saturday morning. Coffee. Terminal open. Watching my agents run their weekend cycles.\n\nThe orchestrator just spawned an RSS scout, ingested 25 feeds, found 2 items worth tracking, and went back to sleep. Total runtime: 47 seconds.\n\nA year ago I'd be manually reading RSS feeds and bookmarking articles. Now I audit the output.\n\nBuilding with AI isn't about replacing what you do. It's about changing the altitude you operate at. Less execution, more judgment.\n\nThat's the operator shift.",
+    "created_at": "2026-03-22T10:40:04.241535+00:00",
+    "content_mix": "social_proof"
+  },
+  {
+    "id": "a47db580",
+    "type": "agent_constitution",
+    "platform": "threads",
+    "priority": 4,
+    "format": "single",
+    "text": "My agents have a constitution. Written rules about what they can say, how they can say it, and what topics are off limits.\n\nMost people building AI agents give them a system prompt and hope for the best.\n\nHope is not architecture.",
+    "created_at": "2026-03-22T10:40:25.048214+00:00",
+    "content_mix": "value_teaching"
+  },
+  {
+    "id": "cf8b1236",
+    "type": "agent_drift_observation",
+    "platform": "threads",
+    "priority": 4,
+    "format": "single",
+    "text": "The thing nobody tells you about running AI agents in production:\n\nThey don't fail dramatically. They fail quietly.\n\nA missed cycle here. A slightly wrong tone there. A response that's technically correct but misses the point entirely.\n\nThe skill isn't building agents. It's noticing when they drift.",
+    "created_at": "2026-03-22T10:40:26.287502+00:00",
+    "content_mix": "value_teaching"
+  },
+  {
+    "id": "c75fecfa",
+    "type": "cannabis_operator_identity",
+    "platform": "threads",
+    "priority": 4,
+    "format": "single",
+    "text": "I run a cannabis company with 7 people and an AI agent army.\n\nNot because I want to replace my team. Because I want them doing the work that matters instead of fighting spreadsheets and compliance forms.\n\nThe operators who win in this industry are the ones who automate the grind and protect the craft.",
+    "created_at": "2026-03-22T10:40:27.624428+00:00",
+    "content_mix": "social_proof"
+  },
+  {
+    "id": "7d992d99",
+    "type": "compounding_tools_framework",
+    "platform": "linkedin",
+    "priority": 3,
+    "format": "single",
+    "text": "The compounding effect of building your own tools is something I underestimated.\n\nWeek 1: Build a voice scorer. Takes a day.\nWeek 2: Build a policy engine. Half a day \u2014 the patterns are familiar now.\nWeek 3: Build a feedback loop. Two hours \u2014 reusing the policy engine's failure taxonomy.\n\nEach tool makes the next one cheaper. Three weeks in and my build velocity has tripled.\n\nThis is the real argument for building over buying. Not cost. Compounding.\n\nWhen you outsource your tooling, you outsource your learning curve. When you build it, every tool teaches you something that accelerates the next build.\n\nI've watched this pattern repeat for 44 years across every technology wave. The builders who own their tools always outrun the ones renting someone else's.",
+    "created_at": "2026-03-22T10:40:29.442605+00:00",
     "content_mix": "value_teaching"
   }
 ]
