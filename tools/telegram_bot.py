@@ -438,23 +438,40 @@ def handle_callback(data, conn):
     if diary_result:
         return diary_result
 
-    if action == "approve":
-        # Update pending action to approved
-        ts = now_iso()
-        cur = conn.execute(
-            "UPDATE pending_actions SET status='approved', completed_at=? WHERE idempotency_key=? AND status='pending'",
-            (ts, key),
+    ts = now_iso()
+
+    if action in ("approve", "reject"):
+        # Write to BOTH tables — pending_actions (legacy) and telegram_approvals (new)
+
+        # 1. Update telegram_approvals (primary)
+        ta_cur = conn.execute(
+            "UPDATE telegram_approvals SET decision=?, responded_at=? WHERE approval_id=? AND decision IS NULL",
+            (action, ts, key),
         )
-        if cur.rowcount == 0:
-            # Try partial match (key might be truncated in callback_data)
-            cur = conn.execute(
-                "UPDATE pending_actions SET status='approved', completed_at=? WHERE idempotency_key LIKE ? AND status='pending'",
-                (ts, f"%{key}%"),
+        if ta_cur.rowcount == 0:
+            # Try partial match
+            ta_cur = conn.execute(
+                "UPDATE telegram_approvals SET decision=?, responded_at=? WHERE approval_id LIKE ? AND decision IS NULL",
+                (action, ts, f"%{key}%"),
             )
+
+        # 2. Update pending_actions (legacy compatibility)
+        pa_cur = conn.execute(
+            "UPDATE pending_actions SET status=?, completed_at=? WHERE idempotency_key=? AND status='pending'",
+            ("approved" if action == "approve" else "rejected", ts, key),
+        )
+        if pa_cur.rowcount == 0:
+            pa_cur = conn.execute(
+                "UPDATE pending_actions SET status=?, completed_at=? WHERE idempotency_key LIKE ? AND status='pending'",
+                ("approved" if action == "approve" else "rejected", ts, f"%{key}%"),
+            )
+
         conn.commit()
 
-        if cur.rowcount > 0:
-            # Get the action details to execute it
+        found = ta_cur.rowcount > 0 or pa_cur.rowcount > 0
+
+        if action == "approve" and found:
+            # Try to execute via pending_actions payload (legacy path)
             row = conn.execute(
                 "SELECT * FROM pending_actions WHERE idempotency_key LIKE ?",
                 (f"%{key}%",),
@@ -462,23 +479,17 @@ def handle_callback(data, conn):
             if row and row["payload"]:
                 try:
                     payload = json.loads(row["payload"])
-                    # Execute the approved action
                     execute_approved_action(row["action_type"], payload, conn)
                 except Exception as e:
                     print(f"[telegram_bot] Execute error: {e}", file=sys.stderr)
 
             return f"✅ Approved: {key[:40]}"
+        elif action == "reject" and found:
+            return f"❌ Rejected: {key[:40]}"
+        elif found:
+            return f"✅ {action.capitalize()}: {key[:40]}"
         else:
             return f"⚠️ Not found or already processed: {key[:40]}"
-
-    elif action == "reject":
-        ts = now_iso()
-        conn.execute(
-            "UPDATE pending_actions SET status='rejected', completed_at=? WHERE idempotency_key LIKE ? AND status='pending'",
-            (ts, f"%{key}%"),
-        )
-        conn.commit()
-        return f"❌ Rejected: {key[:40]}"
 
     return f"⚠️ Unknown action: {action}"
 

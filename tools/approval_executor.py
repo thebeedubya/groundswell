@@ -143,10 +143,110 @@ def attempt_post(approval_id, text, handle, post_id):
             return {"success": False, "error": str(e), "method": "api"}
 
 
+def _poll_telegram_callbacks(conn):
+    """Poll Telegram for callback button taps and record decisions."""
+    import urllib.request
+    import urllib.error
+
+    env_keys = {}
+    try:
+        from _x_auth import load_env as _load_env
+        env_keys = _load_env(keys=["TELEGRAM_BOT_TOKEN", "TELEGRAM_CHAT_ID"])
+    except Exception:
+        pass
+
+    token = env_keys.get("TELEGRAM_BOT_TOKEN") or os.environ.get("TELEGRAM_BOT_TOKEN", "")
+    if not token:
+        return 0
+
+    # Get last processed update ID
+    row = conn.execute(
+        "SELECT value FROM telegram_state WHERE key = 'last_update_id'"
+    ).fetchone()
+    last_id = int(row["value"]) if row else 0
+
+    payload = json.dumps({"timeout": 0, "offset": last_id + 1 if last_id else None}).encode()
+    req = urllib.request.Request(
+        f"https://api.telegram.org/bot{token}/getUpdates",
+        data=payload,
+        headers={"Content-Type": "application/json"},
+        method="POST",
+    )
+
+    try:
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            data = json.loads(resp.read().decode())
+    except Exception:
+        return 0
+
+    updates = data.get("result", [])
+    decisions_recorded = 0
+    max_id = last_id
+
+    for update in updates:
+        uid = update["update_id"]
+        if uid > max_id:
+            max_id = uid
+
+        cb = update.get("callback_query")
+        if not cb:
+            continue
+
+        cb_data = cb.get("data", "")
+        if ":" not in cb_data:
+            continue
+
+        action, approval_id = cb_data.split(":", 1)
+        if action not in ("approve", "reject"):
+            continue
+
+        ts = now_iso()
+
+        # Update the approval record
+        cur = conn.execute(
+            "UPDATE telegram_approvals SET decision = ?, responded_at = ? "
+            "WHERE approval_id = ? AND decision IS NULL",
+            (action, ts, approval_id),
+        )
+
+        if cur.rowcount > 0:
+            decisions_recorded += 1
+
+        # Answer the callback to dismiss the spinner
+        try:
+            answer_payload = json.dumps({
+                "callback_query_id": cb["id"],
+                "text": f"Got it: {action}",
+            }).encode()
+            answer_req = urllib.request.Request(
+                f"https://api.telegram.org/bot{token}/answerCallbackQuery",
+                data=answer_payload,
+                headers={"Content-Type": "application/json"},
+                method="POST",
+            )
+            urllib.request.urlopen(answer_req, timeout=5)
+        except Exception:
+            pass
+
+    # Save last update ID
+    if max_id > last_id:
+        conn.execute(
+            "INSERT INTO telegram_state (key, value) VALUES ('last_update_id', ?) "
+            "ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+            (str(max_id),),
+        )
+
+    conn.commit()
+    return decisions_recorded
+
+
 def cmd_run(args):
-    """Check for approved items and post them."""
+    """Poll Telegram for decisions, then execute approved items."""
     conn = get_conn()
     ts = now_iso()
+
+    # Step 0: Poll Telegram for any button taps we haven't processed
+    decisions = _poll_telegram_callbacks(conn)
 
     # Find approved but not yet executed items
     rows = conn.execute(
