@@ -115,6 +115,15 @@ schedule:
       timeout_seconds: 180
       enabled: true
 
+    # --- Blog Writer (daily long-form content engine) ---
+    blog_writer:
+      agent: blog_writer
+      # Write one blog post per day, early morning before posting windows
+      daily_at: ["06:30"]
+      jitter_minutes: 10
+      timeout_seconds: 300
+      enabled: true
+
     # --- Approval triage (auto-expire stale, digest actionable) ---
     approval_triage:
       agent: approval_triage
