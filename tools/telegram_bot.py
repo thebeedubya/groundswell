@@ -386,6 +386,21 @@ def handle_message(text, conn):
     if lower in ("help", "/help", "/start"):
         return cmd_help()
 
+    # /blog <idea> — tag something as blog material
+    if lower.startswith("/blog ") or lower.startswith("blog:"):
+        idea = original[5:].strip().lstrip(":").strip()
+        if not idea:
+            return "Usage: `/blog Your idea here` — tags it as blog material for the Blog Writer"
+        ts = now_iso()
+        conn.execute(
+            "INSERT INTO intel_feed (category, headline, detail, source_agent, relevance_score, "
+            "actionable, tags, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            ("blog_material", idea[:200], idea, "brad", 1.0, 1,
+             json.dumps(["blog_material", "brad_tagged"]), ts),
+        )
+        conn.commit()
+        return f"📝 Tagged for blog: \"{idea[:80]}\"\nBlog Writer will pick this up next cycle."
+
     # Everything else goes through Claude for a natural response
     return ("__typing__", original, conn)
 

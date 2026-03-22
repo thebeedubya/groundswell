@@ -88,7 +88,14 @@ Each framework is worth multiple blog posts:
 - **The FORGE Pattern** — how an operator builds production AI infrastructure
 - **Operator Leverage** — FTE-equivalents, the math of small teams
 
-### 5. Previous Blog Posts (expansion/follow-up)
+### 5. Aianna's Diary (aianna.ai)
+Aianna publishes a daily diary about what she's learning, remembering, and getting wrong. These diary entries are rich blog material — Brad building a brain for his AI is a compelling narrative. Check recent diary entries:
+```bash
+python3 tools/db.py query "SELECT timestamp, details FROM events WHERE agent = 'diary' AND event_type LIKE '%publish%' ORDER BY id DESC LIMIT 5"
+```
+When a diary entry connects to Brad's builder story, write a blog post that bridges Aianna's perspective with Brad's operational experience. "My AI wrote this diary entry about memory decay. Here's what that looks like from the builder's side."
+
+### 6. Previous Blog Posts (expansion/follow-up)
 Check what's already published and write sequels, updates, or contrarian follow-ups:
 ```bash
 python3 tools/blog.py list
@@ -98,7 +105,13 @@ python3 tools/blog.py list
 
 ### What to Write Today
 
-1. **Check for urgent material first:**
+1. **Check for blog-tagged material first (highest priority):**
+   ```bash
+   python3 tools/db.py read-intel --unacted
+   ```
+   Look for items tagged `blog_material` — Brad or other agents flagged these specifically for a blog post. These are pre-vetted ideas with real material behind them. Write about these first.
+
+   Also check:
    - Any NEWSJACK_READY signals with a deep-take angle?
    - Any FORGE system events from the last 24h worth a post?
    - Any RSS intel scored > 0.8 that needs a long-form take?
