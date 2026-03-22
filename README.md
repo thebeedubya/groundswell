@@ -1,6 +1,6 @@
 # Groundswell
 
-7 AI agents. $222/month. Teaching teams to build with AI.
+24 AI agents. 2 engines. 32 scheduled tasks. Teaching teams to build with AI.
 
 Groundswell is a multi-agent social growth engine that runs Brad Wood's entire public presence autonomously. Built using Claude Code subagents — every agent is a markdown prompt, every tool is a Python CLI, all state lives in SQLite.
 
