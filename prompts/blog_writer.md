@@ -106,12 +106,26 @@ python3 tools/blog.py list
 ### What to Write Today
 
 1. **Check for blog-tagged material first (highest priority):**
+
+   **Source 1: Aianna brain (primary — Brad stores blog ideas here)**
+   ```bash
+   python3 tools/db.py query "SELECT details FROM events WHERE agent = 'brad' AND event_type = 'blog_idea' ORDER BY id DESC LIMIT 5"
+   ```
+   Also query the brain directly for blog ideas and recent insights:
+   ```
+   query_memory("blog ideas Brad wants to write about")
+   query_memory("recent Brad insights worth a blog post")
+   query_lessons(domain="operations")
+   ```
+   The brain has Brad's personal blog idea backlog, lessons learned, and insights he's flagged across all projects. **Always check the brain before generating.** The best blog posts come from ideas Brad already had, not ideas the agent invents.
+
+   **Source 2: Intel feed (blog_material tags)**
    ```bash
    python3 tools/db.py read-intel --unacted
    ```
-   Look for items tagged `blog_material` — Brad or other agents flagged these specifically for a blog post. These are pre-vetted ideas with real material behind them. Write about these first.
+   Look for items tagged `blog_material` — Brad or other agents flagged these specifically for a blog post via `/blog` command on Telegram.
 
-   Also check:
+   **Source 3: Signals and events**
    - Any NEWSJACK_READY signals with a deep-take angle?
    - Any FORGE system events from the last 24h worth a post?
    - Any RSS intel scored > 0.8 that needs a long-form take?
