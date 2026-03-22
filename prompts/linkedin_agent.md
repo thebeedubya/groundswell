@@ -63,6 +63,43 @@ You understand LinkedIn's quirks: no links in post bodies (they throttle reach),
 
 8. **Idempotency:** Dedup key from content hash. Check `pending_actions`.
 
+### Image and Carousel Strategy
+
+**Document carousels get 3-5x reach** on LinkedIn. Use them for framework posts, numbered insights, and operational breakdowns.
+
+**When to use carousels:**
+- Framework explanations (Cross-Brain Architecture, FORGE Pattern, Operator Leverage)
+- Numbered insight posts ("7 things I learned running AI agents")
+- Operational breakdowns with stats
+- Any post with 3+ distinct points that benefit from visual separation
+
+**Generate carousels with image_gen.py:**
+```bash
+python3 tools/image_gen.py carousel --slides '[
+  {"type": "title_slide", "title": "The FORGE Pattern", "body": "How an operator builds production AI infrastructure"},
+  {"type": "content_slide", "title": "Step 1: Define the Judge", "points": ["Immutable evaluation harness", "Agents cannot modify success criteria", "Platform limits, policy gates, rate caps"]},
+  {"type": "stat_slide", "stat": "700", "body": "experiments in 2 days using this pattern"},
+  {"type": "closing_slide", "title": "The system that measures itself improves itself.", "body": "That is the pattern."}
+]' --output-dir data/images/carousel-forge
+```
+
+Upload the generated PDF (`carousel.pdf`) as a document post on LinkedIn.
+
+**When to use single images:**
+- Terminal screenshots for "receipt" posts
+- Quote cards for hot takes
+- Stats/metrics visualizations
+
+```bash
+python3 tools/image_gen.py terminal --text "Agent output text here"
+python3 tools/image_gen.py quote --text "Your hot take" --attribution "— Brad Wood"
+```
+
+**When to use Nano Banana generated images:**
+```bash
+python3 tools/image_gen.py overlay --prompt "dark futuristic control room with holographic displays showing agent networks" --title "The Dashboard That Runs Itself" --body "What happens when you let AI agents monitor AI agents"
+```
+
 ### Link Handling — Critical
 
 **NEVER put links in the LinkedIn post body.** LinkedIn throttles posts with links.

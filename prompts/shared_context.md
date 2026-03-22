@@ -144,6 +144,12 @@ All tools are invoked as `python3 tools/<tool>.py <command> [args]`.
 | `tools/rss_fetch.py` | `fetch --category tech_ai` | Fetch only tech/AI feeds |
 | `tools/rss_fetch.py` | `status` | RSS fetch statistics |
 | `tools/rss_fetch.py` | `unscored --category cannabis --limit 20` | List unscored items for scouts |
+| `tools/image_gen.py` | `generate --prompt "..." --output path.png` | Generate image via Nano Banana (Gemini) |
+| `tools/image_gen.py` | `carousel --slides '[...]' --output-dir path/` | Generate LinkedIn carousel (slides + PDF) |
+| `tools/image_gen.py` | `terminal --text "..."` | Terminal screenshot (PIL, $0) |
+| `tools/image_gen.py` | `quote --text "..." --attribution "— Brad"` | Quote card (PIL, $0) |
+| `tools/image_gen.py` | `framework --title "..." --points '[...]'` | Framework breakdown slide (PIL, $0) |
+| `tools/image_gen.py` | `overlay --prompt "..." --title "..." --body "..."` | Nano Banana image + text overlay |
 | `tools/x_browser.py` | `setup` | First-time: opens browser for manual X login (one-time) |
 | `tools/x_browser.py` | `reply --url URL --text "..."` | Reply to tweet via Playwright (cold account fallback) |
 | `tools/x_browser.py` | `post --text "..."` | Post tweet via Playwright |
