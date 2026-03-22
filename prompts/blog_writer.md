@@ -155,10 +155,18 @@ When writing cannabis content:
 
 ### Write and Queue Blog Post
 ```bash
+# Step 1: Write as draft to dbradwood.com
 python3 tools/blog.py publish --data '{"title": "Post Title", "summary": "One-line meta description", "body": "Full markdown body...", "tags": ["ai-operator", "agent-architecture"]}' --status draft
+
+# Step 2: Send to Telegram for Brad's approval with preview
+python3 tools/telegram.py approval \
+    --id "blog:the-slug-here" \
+    --text "📝 BLOG POST — Post Title\n\nOne-line summary\n\nWORD_COUNT words | Voice: SCORE | Theme: THEME\n\nPreview (first paragraph):\nFIRST_PARAGRAPH_HERE\n\nFull draft at dbradwood.com/writing (marked draft — not public)" \
+    --draft "APPROVE to publish to dbradwood.com. REJECT to kill it." \
+    --options '["approve","reject"]'
 ```
 
-Always publish as **draft** first. Blog publisher handles the final publish after review.
+**ALWAYS send to Telegram after writing.** The blog_publisher will auto-publish when Brad approves — flips status from draft to published and pushes to git. Brad must read and approve every blog post.
 
 ### Check Existing Posts
 ```bash

@@ -471,6 +471,42 @@ def handle_callback(data, conn):
         found = ta_cur.rowcount > 0 or pa_cur.rowcount > 0
 
         if action == "approve" and found:
+            # Check if this is a blog approval — auto-publish to dbradwood.com
+            if key.startswith("blog:"):
+                slug = key.replace("blog:", "")
+                try:
+                    mdx_path = os.path.join(REPO_ROOT, "..", "dbradwood.com", "content", "writing", f"{slug}.mdx")
+                    if os.path.exists(mdx_path):
+                        with open(mdx_path, "r") as f:
+                            content = f.read()
+                        content = content.replace("status: draft", "status: published")
+                        with open(mdx_path, "w") as f:
+                            f.write(content)
+                        # Git commit and push
+                        subprocess.run(
+                            ["git", "add", f"content/writing/{slug}.mdx"],
+                            cwd=os.path.join(REPO_ROOT, "..", "dbradwood.com"),
+                            capture_output=True, timeout=10,
+                        )
+                        subprocess.run(
+                            ["git", "commit", "-m", f"Publish: {slug}"],
+                            cwd=os.path.join(REPO_ROOT, "..", "dbradwood.com"),
+                            capture_output=True, timeout=10,
+                        )
+                        subprocess.run(
+                            ["git", "push", "origin", "main"],
+                            cwd=os.path.join(REPO_ROOT, "..", "dbradwood.com"),
+                            capture_output=True, timeout=15,
+                        )
+                        print(f"[telegram_bot] Blog published: {slug}", file=sys.stderr)
+                        return f"✅ Blog published: {slug} → dbradwood.com"
+                    else:
+                        print(f"[telegram_bot] Blog MDX not found: {mdx_path}", file=sys.stderr)
+                        return f"✅ Approved but MDX not found: {slug}"
+                except Exception as e:
+                    print(f"[telegram_bot] Blog publish error: {e}", file=sys.stderr)
+                    return f"✅ Approved but publish failed: {e}"
+
             # Try to execute via pending_actions payload (legacy path)
             row = conn.execute(
                 "SELECT * FROM pending_actions WHERE idempotency_key LIKE ?",
