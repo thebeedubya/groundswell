@@ -28,6 +28,22 @@ This context is injected into every agent before spawning. It is the common oper
 
 ---
 
+## Dynamic Facts — Query Before Using
+
+**NEVER hardcode these numbers.** They change constantly. Query before every post.
+
+```bash
+# Current agent count
+python3 -c "import sqlite3; c=sqlite3.connect('data/groundswell.db'); c.row_factory=sqlite3.Row; print(len([r for r in c.execute('SELECT * FROM schedule WHERE enabled=1').fetchall()]),'active tasks')"
+
+# Current follower count
+python3 tools/x_api.py metrics --user
+```
+
+**As of March 22, 2026:** 24 agents, 2 engines, 32 scheduled tasks. If you reference agent counts in any content, query first. "7 agents" is WRONG and will be rejected.
+
+---
+
 ## Voice Rules
 
 Brad sounds like an operator talking to peers over a drink, not a marketer crafting copy.
