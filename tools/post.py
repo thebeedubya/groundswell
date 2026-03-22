@@ -166,8 +166,116 @@ def cmd_verify(args):
             emit(_api_error(e))
 
 
-def post_to_linkedin(text, person_id, access_token):
-    """Post to LinkedIn via the Posts API. Pure stdlib."""
+def _linkedin_headers(access_token, content_type="application/json"):
+    """Standard LinkedIn API headers."""
+    return {
+        "Authorization": f"Bearer {access_token}",
+        "Content-Type": content_type,
+        "LinkedIn-Version": "202602",
+        "X-Restli-Protocol-Version": "2.0.0",
+    }
+
+
+def _linkedin_upload_image(image_path, person_id, access_token):
+    """Upload an image to LinkedIn. Returns the image URN for attachment."""
+    # Step 1: Initialize upload
+    init_url = "https://api.linkedin.com/rest/images?action=initializeUpload"
+    init_payload = {
+        "initializeUploadRequest": {
+            "owner": person_id,
+        }
+    }
+    data = json.dumps(init_payload).encode("utf-8")
+    req = urllib.request.Request(
+        init_url, data=data,
+        headers=_linkedin_headers(access_token),
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(req) as resp:
+            result = json.loads(resp.read().decode("utf-8"))
+    except urllib.error.HTTPError as e:
+        body = e.read().decode("utf-8", errors="replace")
+        return None, f"Init upload failed: {e.code} {body}"
+
+    upload_url = result.get("value", {}).get("uploadUrl")
+    image_urn = result.get("value", {}).get("image")
+    if not upload_url or not image_urn:
+        return None, f"Missing uploadUrl or image URN in response: {result}"
+
+    # Step 2: Upload the binary image
+    with open(image_path, "rb") as f:
+        image_data = f.read()
+
+    req = urllib.request.Request(
+        upload_url, data=image_data,
+        headers={
+            "Authorization": f"Bearer {access_token}",
+            "Content-Type": "application/octet-stream",
+        },
+        method="PUT",
+    )
+    try:
+        with urllib.request.urlopen(req) as resp:
+            _log_api_call("linkedin", "write", "/rest/images/upload")
+    except urllib.error.HTTPError as e:
+        body = e.read().decode("utf-8", errors="replace")
+        return None, f"Image upload failed: {e.code} {body}"
+
+    return image_urn, None
+
+
+def _linkedin_upload_document(pdf_path, person_id, access_token):
+    """Upload a PDF document (carousel) to LinkedIn. Returns the document URN."""
+    # Step 1: Initialize upload
+    init_url = "https://api.linkedin.com/rest/documents?action=initializeUpload"
+    init_payload = {
+        "initializeUploadRequest": {
+            "owner": person_id,
+        }
+    }
+    data = json.dumps(init_payload).encode("utf-8")
+    req = urllib.request.Request(
+        init_url, data=data,
+        headers=_linkedin_headers(access_token),
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(req) as resp:
+            result = json.loads(resp.read().decode("utf-8"))
+    except urllib.error.HTTPError as e:
+        body = e.read().decode("utf-8", errors="replace")
+        return None, f"Init doc upload failed: {e.code} {body}"
+
+    upload_url = result.get("value", {}).get("uploadUrl")
+    doc_urn = result.get("value", {}).get("document")
+    if not upload_url or not doc_urn:
+        return None, f"Missing uploadUrl or document URN: {result}"
+
+    # Step 2: Upload the PDF
+    with open(pdf_path, "rb") as f:
+        pdf_data = f.read()
+
+    req = urllib.request.Request(
+        upload_url, data=pdf_data,
+        headers={
+            "Authorization": f"Bearer {access_token}",
+            "Content-Type": "application/pdf",
+        },
+        method="PUT",
+    )
+    try:
+        with urllib.request.urlopen(req) as resp:
+            _log_api_call("linkedin", "write", "/rest/documents/upload")
+    except urllib.error.HTTPError as e:
+        body = e.read().decode("utf-8", errors="replace")
+        return None, f"Doc upload failed: {e.code} {body}"
+
+    return doc_urn, None
+
+
+def post_to_linkedin(text, person_id, access_token, image_path=None, document_path=None):
+    """Post to LinkedIn via the Posts API. Supports text, image, and document (carousel) posts."""
     url = "https://api.linkedin.com/rest/posts"
     payload = {
         "author": person_id,
@@ -180,16 +288,33 @@ def post_to_linkedin(text, person_id, access_token):
         },
         "lifecycleState": "PUBLISHED",
     }
+
+    # Upload and attach document (carousel PDF) if provided
+    if document_path:
+        doc_urn, err = _linkedin_upload_document(document_path, person_id, access_token)
+        if err:
+            return {"ok": False, "platform": "linkedin", "error": "document_upload_failed", "detail": err}
+        payload["content"] = {
+            "media": {
+                "title": "Swipe through →",
+                "id": doc_urn,
+            }
+        }
+    # Upload and attach image if provided (and no document)
+    elif image_path:
+        image_urn, err = _linkedin_upload_image(image_path, person_id, access_token)
+        if err:
+            return {"ok": False, "platform": "linkedin", "error": "image_upload_failed", "detail": err}
+        payload["content"] = {
+            "media": {
+                "id": image_urn,
+            }
+        }
+
     data = json.dumps(payload).encode("utf-8")
     req = urllib.request.Request(
-        url,
-        data=data,
-        headers={
-            "Authorization": f"Bearer {access_token}",
-            "Content-Type": "application/json",
-            "LinkedIn-Version": "202602",
-            "X-Restli-Protocol-Version": "2.0.0",
-        },
+        url, data=data,
+        headers=_linkedin_headers(access_token),
         method="POST",
     )
     try:
@@ -200,6 +325,8 @@ def post_to_linkedin(text, person_id, access_token):
                 "platform": "linkedin",
                 "status": resp.status,
                 "post_id": resp.headers.get("x-restli-id", "unknown"),
+                "has_image": bool(image_path),
+                "has_document": bool(document_path),
             }
     except urllib.error.HTTPError as e:
         body = e.read().decode("utf-8", errors="replace")
@@ -224,7 +351,10 @@ def cmd_linkedin(args):
         })
         return
 
-    result = post_to_linkedin(text, person_id, token)
+    image_path = getattr(args, "image", None)
+    document_path = getattr(args, "document", None)
+
+    result = post_to_linkedin(text, person_id, token, image_path=image_path, document_path=document_path)
     emit(result)
 
 
@@ -265,6 +395,7 @@ def build_parser():
     p = sub.add_parser("linkedin", help="Post to LinkedIn")
     p.add_argument("--text", required=True, help="Text content to post")
     p.add_argument("--image", default=None, help="Path to image to attach")
+    p.add_argument("--document", default=None, help="Path to PDF for carousel/document post")
 
     # threads
     p = sub.add_parser("threads", help="Post to Threads")
