@@ -108,6 +108,102 @@ Look for patterns: stale facts, wrong voice, bad targets, timing issues. Feed th
 
 **HARD CONSTRAINT: NEVER ignore operational failures.** If the system is hitting rate limits repeatedly, the analyst MUST recommend volume reduction. Letting the system bang against limits wastes API budget and risks platform penalties. Silence is not an option — if failures exist, they appear in the audit.
 
+### Content Autoresearch Loop (Karpathy Pattern)
+
+This is the core growth engine. Every post is an experiment. The system measures what works, shifts toward winners, and reverts what doesn't. This runs during EVERY analyst_snapshot cycle.
+
+**The Judge (immutable — you cannot change these):**
+- Engagement rate per post (likes + replies + QTs + bookmarks / impressions)
+- Reply rate specifically (replies / impressions — highest signal for algorithmic boost)
+- Follower delta within 24h of each post
+- Platform-specific: LinkedIn dwell time, Threads conversation chain depth
+
+**The Parameters (editable — you tune these via strategy_state):**
+- Content mix weights: value_teaching / social_proof / engagement_bait (target 50/30/20)
+- Theme weights: ai_operator / cannabis_ops / founder_lessons / personal_texture (target 40/30/20/10)
+- Format weights: tweet / thread / linkedin_long / carousel / threads_post / quote_tweet
+- Hook type weights: contrarian / receipt / question / bridge / narrative
+- Posting time preferences per platform
+- Image vs text-only ratio
+
+**The Loop (runs every analyst_snapshot):**
+
+**Step 1: Score recent posts (last 24h)**
+```bash
+# Get posts from last 24h
+python3 tools/db.py query "SELECT * FROM events WHERE event_type LIKE '%post_sent%' AND timestamp > datetime('now', '-24 hours')"
+
+# For each post, pull metrics
+python3 tools/x_api.py metrics --post-id POST_ID
+```
+
+**Step 2: Log to content_genome**
+
+For each post with metrics, write to content_genome if not already there:
+```bash
+python3 tools/db.py query "INSERT OR IGNORE INTO content_genome (post_id, platform, posted_at, hook_type, format, topic_cluster, timing_hour, timing_day, impressions, likes, replies, reposts, engagement_rate, performance_multiple, strategy_version, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+```
+
+Calculate `performance_multiple` = this post's engagement_rate / baseline engagement_rate for same platform+format.
+
+**Step 3: Compare to baseline**
+
+```bash
+# Baseline: 30-day rolling average by platform and format
+python3 tools/db.py query "SELECT platform, format, AVG(engagement_rate) as baseline, COUNT(*) as samples FROM content_genome WHERE posted_at > datetime('now', '-30 days') GROUP BY platform, format"
+```
+
+- If samples < 30 for a category, use global baseline (all platforms, all formats)
+- If total samples < 50, skip weight adjustments — not enough data yet, just log
+
+**Step 4: Identify winners and losers**
+
+Winners: posts with performance_multiple >= 1.5 (50% above baseline)
+Losers: posts with performance_multiple <= 0.5 (50% below baseline)
+
+For each winner, extract content DNA:
+- What theme? What format? What hook type? What time? Image or text-only?
+- Log the winning pattern to strategy_state
+
+**Step 5: Adjust weights (BOUNDED)**
+
+Apply the Autoresearch keep/revert logic:
+- If a content type outperformed baseline for 3+ posts → increase its weight by up to 5%
+- If a content type underperformed for 3+ posts → decrease weight by up to 5%
+- EMA smoothing: alpha = 0.15 (first 4 weeks), 0.30 (after 4 weeks)
+- **Maximum ±5% per day, ±20% per week** — prevent oscillation
+- **Never drop any category below 10%** — starvation kills exploration
+- **Never raise any category above 60%** — concentration kills diversity
+- If a weight change improves the 7-day rolling engagement rate → KEEP
+- If engagement rate drops for 2 consecutive cycles after a change → REVERT to last known good
+
+```bash
+# Update strategy weights
+python3 tools/db.py set-strategy --key content_mix_value_teaching --value '0.52'
+python3 tools/db.py set-strategy --key format_weight_carousel --value '0.15'
+
+# ALWAYS increment version
+python3 tools/db.py set-strategy --key strategy_version --value 'N+1'
+
+# Emit signal so agents pick up changes
+python3 tools/signal.py emit --type STRATEGY_UPDATE --data '{"reason": "autoresearch_content_loop", "changes": ["value_teaching: 0.50→0.52", "carousel: 0.10→0.15"], "trigger": "3_winner_posts_carousel"}'
+```
+
+**Step 6: Log the experiment**
+
+Every cycle, log what you measured, what you changed, and why:
+```bash
+python3 tools/db.py log-event --agent analyst --type autoresearch_cycle --details '{"posts_scored": N, "winners": N, "losers": N, "weight_changes": [...], "baseline_engagement_rate": X, "current_engagement_rate": Y, "samples_total": N}'
+```
+
+**Minimum data thresholds (do NOT adjust weights below these):**
+- Total posts in content_genome: 50 minimum
+- Posts per category being adjusted: 10 minimum
+- Days of data: 14 minimum
+- Below thresholds: log metrics, track trends, but use default weights
+
+**When data is insufficient, say so explicitly:** "Content genome has 13 posts. Need 50+ before running weight adjustments. Logging metrics only this cycle."
+
 ### Breakout Detection
 
 Run every 30 minutes. Check all posts from the last 2 hours against baseline engagement.

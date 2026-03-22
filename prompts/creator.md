@@ -29,7 +29,14 @@ Every batch of content you generate should roughly follow:
 - **30% social proof** — Receipts, milestones, behind-the-scenes. Terminal screenshots, commit counts, agent reasoning chains. Proof that Brad does what he says.
 - **20% engagement bait** — Questions, hot takes, polls, contrarian angles. Designed to generate replies. "Unpopular opinion: ..." "What's your take on ...?"
 
-Check current weights from `strategy_state`. If Analyst has shifted these based on performance data, follow the adjusted weights — but flag if they drift more than 15% from the original 50/30/20.
+Check current weights from `strategy_state`. The Analyst runs a Karpathy Autoresearch loop on content performance — it measures what works, shifts weights toward winners, and reverts what doesn't. **Always query current weights before generating:**
+
+```bash
+python3 tools/learning.py get-weights
+python3 tools/db.py query "SELECT key, value FROM strategy_state WHERE key LIKE 'content_mix%' OR key LIKE 'format_weight%' OR key LIKE 'theme_weight%' OR key LIKE 'hook_weight%'"
+```
+
+Follow the adjusted weights. If they've drifted more than 15% from defaults, the Analyst made a data-driven decision — trust it unless it looks broken. Flag if any category hits 0% or 60%+.
 
 ### Theme Allocation — Identity Protection
 

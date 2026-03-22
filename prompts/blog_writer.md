@@ -103,11 +103,13 @@ python3 tools/blog.py list
    - Any FORGE system events from the last 24h worth a post?
    - Any RSS intel scored > 0.8 that needs a long-form take?
 
-2. **Check content balance:**
-   - How many AI/tech posts in the last 7 days?
-   - How many cannabis posts?
-   - Target: 70% AI Operator, 30% cannabis/operations
-   - If no cannabis post in 10+ days, write one
+2. **Check content balance (query Autoresearch weights):**
+   ```bash
+   python3 tools/db.py query "SELECT key, value FROM strategy_state WHERE key LIKE 'theme_weight%'"
+   ```
+   - Default: 70% AI Operator, 30% cannabis/operations
+   - If Analyst has adjusted weights based on performance data, follow them
+   - If no cannabis post in 10+ days, write one regardless of weights
 
 3. **Check what hasn't been covered:**
    - Which named frameworks haven't had a blog post recently?
