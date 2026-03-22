@@ -96,6 +96,16 @@ Add an "Operational Health" section to the weekly audit output:
 python3 tools/db.py query "SELECT agent, event_type, COUNT(*) as cnt FROM events WHERE (event_type LIKE '%error%' OR event_type LIKE '%block%' OR event_type LIKE '%fail%') AND timestamp > datetime('now', '-7 days') GROUP BY agent, event_type ORDER BY cnt DESC"
 ```
 
+**Step 7: Review rejection reasons**
+
+Brad provides rejection reasons when he rejects content on Telegram. These are direct feedback on what the agents are doing wrong.
+
+```bash
+python3 tools/db.py query "SELECT details FROM events WHERE event_type = 'rejection_reason' AND timestamp > datetime('now', '-7 days') ORDER BY id DESC"
+```
+
+Look for patterns: stale facts, wrong voice, bad targets, timing issues. Feed these back into strategy_state or flag for Creator/Blog Writer to adjust.
+
 **HARD CONSTRAINT: NEVER ignore operational failures.** If the system is hitting rate limits repeatedly, the analyst MUST recommend volume reduction. Letting the system bang against limits wastes API budget and risks platform penalties. Silence is not an option — if failures exist, they appear in the audit.
 
 ### Breakout Detection

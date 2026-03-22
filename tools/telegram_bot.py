@@ -654,6 +654,20 @@ def serve():
 
                     # 3. Send confirmation of what happened
                     send_message(token, chat_id, result)
+
+                    # 4. If rejected, ask for reason
+                    if "reject" in action_word:
+                        rejection_key = cb_data.split(":", 1)[1] if ":" in cb_data else cb_data
+                        conn2 = get_db()
+                        conn2.execute(
+                            "INSERT INTO telegram_state (key, value) VALUES ('awaiting_rejection_reason', ?) "
+                            "ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+                            (rejection_key,),
+                        )
+                        conn2.commit()
+                        conn2.close()
+                        send_message(token, chat_id, "💬 Why did you reject this? (Type a short reason — helps the agents learn)")
+
                     continue
 
                 # Handle regular messages
@@ -667,6 +681,39 @@ def serve():
 
                 if not text:
                     continue
+
+                # Check if we're awaiting a rejection reason
+                conn_check = get_db()
+                awaiting = conn_check.execute(
+                    "SELECT value FROM telegram_state WHERE key = 'awaiting_rejection_reason'"
+                ).fetchone()
+                if awaiting and awaiting["value"]:
+                    rejection_key = awaiting["value"]
+                    # Store the reason
+                    conn_check.execute(
+                        "UPDATE telegram_approvals SET decision = 'reject', "
+                        "responded_at = COALESCE(responded_at, ?) "
+                        "WHERE approval_id = ? OR approval_id LIKE ?",
+                        (now_iso(), rejection_key, f"%{rejection_key}%"),
+                    )
+                    # Log as a learning event
+                    conn_check.execute(
+                        "INSERT INTO events (timestamp, agent, event_type, details) VALUES (?, ?, ?, ?)",
+                        (now_iso(), "brad", "rejection_reason", json.dumps({
+                            "approval_id": rejection_key,
+                            "reason": text,
+                        })),
+                    )
+                    # Clear the awaiting state
+                    conn_check.execute(
+                        "DELETE FROM telegram_state WHERE key = 'awaiting_rejection_reason'"
+                    )
+                    conn_check.commit()
+                    conn_check.close()
+                    send_message(token, chat_id, f"📝 Got it — recorded: \"{text[:80]}\"")
+                    print(f"[telegram_bot] Rejection reason for {rejection_key}: {text}")
+                    continue
+                conn_check.close()
 
                 print(f"[telegram_bot] Received: {text}")
 
