@@ -254,18 +254,23 @@ def cmd_approval(args):
         tweet_url = f"https://x.com/{handle}/status/{args.post_id}" if handle else f"https://x.com/i/status/{args.post_id}"
         card_text = f"{card_text}\n\nTweet: {tweet_url}"
 
-    # Tag delivery method so Brad knows what to expect
+    # Tag delivery method
     delivery = getattr(args, "delivery", None) or "auto"
-    if delivery == "manual":
-        delivery_tag = "\U0001f4cb MANUAL — copy-paste required"
-    else:
-        delivery_tag = "\U0001f916 AUTO — will post via API"
+    delivery_tag = "\U0001f916 AUTO" if delivery != "manual" else "\U0001f4cb MANUAL"
 
+    # Build a single self-contained card with everything Brad needs
     import html as html_mod
     safe_card = html_mod.escape(card_text)
+
+    # Include draft text inline in the card if provided
+    draft_section = ""
+    if args.draft:
+        safe_draft = html_mod.escape(args.draft)
+        draft_section = f"\n\n\U0001f4dd <b>Draft:</b>\n<code>{safe_draft}</code>"
+
     payload = {
         "chat_id": chat_id,
-        "text": f"\U0001f514 <b>Approval Required</b> (#{html_mod.escape(approval_id)})\n{delivery_tag}\n\n{safe_card}",
+        "text": f"\U0001f514 <b>Approval</b> | {delivery_tag}\n\n{safe_card}{draft_section}",
         "parse_mode": "HTML",
         "reply_markup": reply_markup,
     }
@@ -274,15 +279,6 @@ def cmd_approval(args):
         fail(f"Telegram returned ok=false: {result.get('description', 'unknown')}")
 
     message_id = result["result"]["message_id"]
-
-    # Send draft text as a separate plain-text message for easy copy-paste
-    if args.draft:
-        draft_payload = {
-            "chat_id": chat_id,
-            "text": args.draft,
-            "reply_to_message_id": message_id,
-        }
-        telegram_api(token, "sendMessage", draft_payload)
 
     # Store in DB
     conn = get_db()
@@ -531,18 +527,26 @@ def cmd_triage(args):
                 for opt in options
             ]
 
-            # Detect warm/cold for delivery tag
+            # Build self-contained card
             card_text = row["text"] or ""
-            is_reply = "reply" in aid.lower() or "qt:" in aid.lower() or "community" in aid.lower()
-            delivery_tag = "\U0001f4cb MANUAL" if is_reply else "\U0001f916 AUTO"
             priority_tag = "\U0001f451 HIGH VALUE" if item in tier1 else ""
+            delivery_tag = "\U0001f916 AUTO"
             tag_line = " | ".join(filter(None, [priority_tag, delivery_tag]))
 
             import html as html_mod
             safe_card = html_mod.escape(card_text)
+
+            # Extract draft from the stored text if possible
+            draft_section = ""
+            import re as _re
+            draft_match = _re.search(r"(?:Draft|Proposed reply|Reply text):\s*[\"']?(.*?)(?:[\"']?\s*$)", card_text, _re.DOTALL | _re.IGNORECASE)
+            if draft_match and len(draft_match.group(1).strip()) > 10:
+                safe_draft = html_mod.escape(draft_match.group(1).strip())
+                draft_section = f"\n\n\U0001f4dd <b>Draft:</b>\n<code>{safe_draft}</code>"
+
             payload = {
                 "chat_id": chat_id,
-                "text": f"\U0001f514 <b>Approval</b> (#{html_mod.escape(aid[:40])})\n{tag_line}\n\n{safe_card}",
+                "text": f"\U0001f514 <b>Approval</b> | {tag_line}\n\n{safe_card}{draft_section}",
                 "parse_mode": "HTML",
                 "reply_markup": {"inline_keyboard": [buttons]},
             }
