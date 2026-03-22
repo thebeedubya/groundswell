@@ -59,6 +59,9 @@ while true; do
         python3 tools/schedule.py complete --task approval_triage 2>/dev/null
     fi
 
+    # Execute any approved items (API → Playwright fallback) — every cycle
+    python3 tools/approval_executor.py run >> "$LOG_DIR/executor.log" 2>&1
+
     # Run one orchestrator cycle
     LOG_FILE="$LOG_DIR/orchestrator-$(date +%Y-%m-%d).log"
     echo "--- $(date -u +%Y-%m-%dT%H:%M:%SZ) ---" >> "$LOG_FILE"

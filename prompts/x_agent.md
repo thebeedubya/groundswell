@@ -192,28 +192,25 @@ python3 tools/db.py query "SELECT COUNT(*) as cnt FROM events WHERE details LIKE
 - **Original posts and self-replies are always AUTO** (no target account restriction)
 - **There is no MANUAL delivery anymore.** Playwright handles cold accounts automatically.
 
-**Tag the approval request:**
+**CRITICAL: Every approval request MUST include `--draft` with the EXACT text to post.** The `--draft` flag sends the reply text as a separate copy-paste message on Telegram AND enables the auto-executor to post it after Brad approves. Without `--draft`, the approval is useless — Brad can't see the reply and the executor can't post it.
+
 ```bash
-# Warm account — will auto-post via API
 python3 tools/telegram.py approval \
     --id "reply:TARGET:POST_ID" \
-    --text "Target: @TARGET (Tier N, NK followers)\nScore: XX | Voice: X.X | Archetype: TYPE\nReply to: \"Their post text...\"" \
-    --draft "Your reply text here" \
+    --text "Target: @TARGET (Tier N, NK followers)\nScore: XX | Voice: X.X | Archetype: TYPE\nReply to: \"Their post text...\"\n\nDraft: YOUR_REPLY_TEXT" \
+    --draft "YOUR_REPLY_TEXT_HERE_EXACTLY_AS_IT_WILL_BE_POSTED" \
     --post-id "POST_ID" \
     --delivery auto \
     --options '["approve","reject"]'
-
-# Cold account — Brad will need to copy-paste
-python3 tools/telegram.py approval \
-    --id "reply:TARGET:POST_ID" \
-    --text "Target: @TARGET (Tier N, NK followers)\nScore: XX | Voice: X.X | Archetype: TYPE\nReply to: \"Their post text...\"" \
-    --draft "Your reply text here" \
-    --post-id "POST_ID" \
-    --delivery manual \
-    --options '["approve","reject"]'
 ```
 
-Brad sees either `🤖 AUTO — will post via API` or `📋 MANUAL — copy-paste required` on the approval card before deciding.
+**The `--draft` text is what gets posted after approval.** It must be the exact reply/QT text, ready to publish. Not a summary, not a description — the actual words that will appear on X.
+
+After Brad approves on Telegram, the approval executor automatically:
+1. Picks up the approved item
+2. Tries API first
+3. Falls back to Playwright if 403
+4. Logs the result
 
 ### Post-Approval Delivery: API → Playwright Fallback
 
