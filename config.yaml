@@ -148,12 +148,20 @@ schedule:
       timeout_seconds: 120
       enabled: false  # Replaced by marketing_manager → linkedin_agent
 
+    threads_agent:
+      agent: threads_agent
+      # Post at same windows as X, lighter volume
+      daily_at: ["07:30", "12:00", "17:00"]
+      jitter_minutes: 15
+      timeout_seconds: 120
+      enabled: true
+
     publisher_threads:
       agent: publisher
       interval_minutes: 180
       jitter_minutes: 30
       timeout_seconds: 120
-      enabled: false
+      enabled: false  # Replaced by threads_agent
 
     outbound_engager:
       agent: outbound_engager

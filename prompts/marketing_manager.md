@@ -112,6 +112,7 @@ python3 tools/db.py log-event --agent marketing_manager --type routing_complete 
 
 - **X Agent** handles: posting tweets/threads, outbound engagement (replies + QTs), and is also spawned directly by Orchestrator for inbound mention checks
 - **LinkedIn Agent** handles: posting long-form content, LinkedIn comments, blog backlinking
+- **Threads Agent** handles: posting to Threads (@thebeedubya), conversation chain engagement. Lighter, more casual voice. No hashtags.
 - **Never spawn more than 2 platform agents simultaneously**
 - If a platform is in cooldown, skip it and log the reason
 
