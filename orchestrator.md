@@ -81,6 +81,26 @@ python3 tools/telegram.py triage
 
 Log the result and mark the task complete.
 
+### Special handling: outbound_x
+
+If the due task is `outbound_x`, spawn the X Agent with task type `outbound_post`:
+
+```bash
+cat prompts/x_agent.md
+```
+
+Inject state with `task_type: outbound_post`. The X Agent will select the best backlog item for X, run quality gates, and post it. This runs at posting windows independently of Marketing Manager.
+
+### Special handling: outbound_linkedin
+
+If the due task is `outbound_linkedin`, spawn the LinkedIn Agent with task type `outbound_post`:
+
+```bash
+cat prompts/linkedin_agent.md
+```
+
+Inject state with `task_type: outbound_post`. The LinkedIn Agent will select the best backlog item for LinkedIn, run quality gates, and post it. Include carousel generation instructions if the content is framework/insight type.
+
 ### Special handling: inbound_x
 
 If the due task is `inbound_x`, spawn the X Agent with task type `inbound_mentions`:

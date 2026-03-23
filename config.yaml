@@ -81,6 +81,22 @@ schedule:
       timeout_seconds: 120
       enabled: true
 
+    outbound_x:
+      agent: x_agent
+      # Direct orchestrator→x_agent dispatch for posting content
+      daily_at: ["07:00", "08:00", "11:30", "12:30", "17:00"]
+      jitter_minutes: 15
+      timeout_seconds: 120
+      enabled: true
+
+    outbound_linkedin:
+      agent: linkedin_agent
+      # Direct orchestrator→linkedin_agent dispatch for posting content
+      daily_at: ["08:00", "12:00"]
+      jitter_minutes: 15
+      timeout_seconds: 180
+      enabled: true
+
     # --- RSS infrastructure ---
     rss_fetch:
       agent: rss_fetch
