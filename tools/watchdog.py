@@ -140,10 +140,7 @@ def check():
 
     # 7. Verify actual platform posts exist (trust but verify)
     # Check last post_sent event for each platform and verify it's live
-    for platform, verify_cmd in [
-        ("x", ["python3", "tools/post.py", "verify", "--platform", "x", "--id"]),
-        # LinkedIn and Threads verification not implemented yet — just check events
-    ]:
+    for platform in ["x", "linkedin", "threads"]:
         last_post = conn.execute(
             "SELECT details FROM events WHERE event_type LIKE '%post_sent%' "
             "AND details LIKE ? AND timestamp > datetime('now', '-48 hours') "
@@ -155,22 +152,84 @@ def check():
             try:
                 d = json.loads(last_post["details"])
                 post_id = d.get("post_id")
-                if post_id and platform == "x":
-                    result = subprocess.run(
-                        verify_cmd + [str(post_id)],
-                        capture_output=True, text=True, timeout=15,
-                        cwd=os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-                    )
+                if not post_id:
+                    continue
+
+                verified = False
+
+                # Try API verification first (X only)
+                if platform == "x":
                     try:
+                        result = subprocess.run(
+                            ["python3", "tools/post.py", "verify", "--platform", "x", "--id", str(post_id)],
+                            capture_output=True, text=True, timeout=15,
+                            cwd=os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                        )
                         vdata = json.loads(result.stdout)
-                        if not vdata.get("verified") and not vdata.get("ok"):
-                            alerts.append({
-                                "type": "ghost_post",
-                                "severity": "high",
-                                "message": f"X post {post_id} logged as sent but NOT verified on platform. Ghost post.",
-                            })
-                    except (json.JSONDecodeError, Exception):
+                        if vdata.get("verified") or vdata.get("ok"):
+                            verified = True
+                    except Exception:
                         pass
+
+                # Playwright verification for all platforms (fallback or primary)
+                if not verified:
+                    try:
+                        # Build the URL to check
+                        if platform == "x":
+                            check_url = f"https://x.com/thebeedubya/status/{post_id}"
+                        elif platform == "linkedin":
+                            # LinkedIn URNs need conversion
+                            check_url = f"https://www.linkedin.com/feed/update/{post_id}/"
+                        elif platform == "threads":
+                            check_url = f"https://www.threads.net/@thebeedubya/post/{post_id}"
+                        else:
+                            continue
+
+                        result = subprocess.run(
+                            ["python3", "-c", f"""
+import asyncio
+from playwright.async_api import async_playwright
+
+async def verify():
+    async with async_playwright() as p:
+        browser = await p.chromium.launch(headless=True)
+        page = await browser.new_page()
+        try:
+            await page.goto("{check_url}", timeout=15000)
+            await page.wait_for_timeout(3000)
+            # Check for error indicators
+            content = await page.content()
+            is_404 = "doesn't exist" in content or "not found" in content.lower() or "page isn't available" in content.lower()
+            print("VERIFIED" if not is_404 else "NOT_FOUND")
+        except:
+            print("ERROR")
+        finally:
+            await browser.close()
+
+asyncio.run(verify())
+"""],
+                            capture_output=True, text=True, timeout=25,
+                            cwd=os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                        )
+                        verdict = result.stdout.strip()
+                        if verdict == "VERIFIED":
+                            verified = True
+                        elif verdict == "NOT_FOUND":
+                            verified = False
+                        # ERROR = inconclusive, don't alert
+                        elif verdict == "ERROR":
+                            continue
+
+                    except Exception:
+                        continue
+
+                if not verified:
+                    alerts.append({
+                        "type": "ghost_post",
+                        "severity": "high",
+                        "message": f"{platform} post {str(post_id)[:30]} logged as sent but NOT found on platform. Ghost post.",
+                    })
+
             except (json.JSONDecodeError, Exception):
                 pass
 
