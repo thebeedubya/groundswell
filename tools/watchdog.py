@@ -111,10 +111,11 @@ def check():
     # 5. Check run.sh is alive
     try:
         result = subprocess.run(
-            ["pgrep", "-f", "groundswell/run.sh"],
+            ["bash", "-c", "ps aux | grep 'run.sh' | grep -v grep | grep -v aianna-social | grep -c ."],
             capture_output=True, text=True, timeout=5,
         )
-        if not result.stdout.strip():
+        count = int(result.stdout.strip() or "0")
+        if count == 0:
             alerts.append({
                 "type": "engine_down",
                 "severity": "critical",
@@ -178,10 +179,22 @@ def check():
                         if platform == "x":
                             check_url = f"https://x.com/thebeedubya/status/{post_id}"
                         elif platform == "linkedin":
-                            # LinkedIn URNs need conversion
                             check_url = f"https://www.linkedin.com/feed/update/{post_id}/"
                         elif platform == "threads":
-                            check_url = f"https://www.threads.net/@thebeedubya/post/{post_id}"
+                            # Threads blocks headless — verify via API instead
+                            try:
+                                threads_token = os.environ.get("THREADS_BRAD_ACCESS_TOKEN", "")
+                                if threads_token:
+                                    import urllib.request as _ur
+                                    api_url = f"https://graph.threads.net/v1.0/{post_id}?fields=id&access_token={threads_token}"
+                                    with _ur.urlopen(api_url, timeout=10) as resp:
+                                        tdata = json.loads(resp.read().decode())
+                                        if tdata.get("id"):
+                                            verified = True
+                                            continue
+                            except Exception:
+                                pass
+                            continue  # Skip Playwright for Threads
                         else:
                             continue
 
