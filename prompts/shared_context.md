@@ -28,6 +28,16 @@ This context is injected into every agent before spawning. It is the common oper
 
 ---
 
+## Content Directive (check every cycle)
+
+Before generating or routing content, check for an active content directive:
+```bash
+python3 tools/db.py query "SELECT details FROM events WHERE agent = 'brad' AND event_type = 'content_directive' AND timestamp > datetime('now', '-24 hours') ORDER BY id DESC LIMIT 1"
+```
+If a directive exists, ALL content for that period must align with the directive theme. This overrides normal content mix weights.
+
+---
+
 ## Dynamic Facts — Query Before Using
 
 **NEVER hardcode these numbers.** They change constantly. Query before every post.
