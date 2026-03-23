@@ -248,10 +248,11 @@ def cmd_run(args):
     # Step 0: Poll Telegram for any button taps we haven't processed
     decisions = _poll_telegram_callbacks(conn)
 
-    # Find approved but not yet executed items
+    # Find approved but not yet executed items (last 48 hours only — don't re-process old history)
     rows = conn.execute(
         "SELECT * FROM telegram_approvals WHERE decision = 'approve' "
-        "AND (responded_at IS NOT NULL) "
+        "AND responded_at IS NOT NULL "
+        "AND responded_at > datetime('now', '-48 hours') "
         "ORDER BY responded_at ASC"
     ).fetchall()
 
