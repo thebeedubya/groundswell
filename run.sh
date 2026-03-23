@@ -63,21 +63,20 @@ while true; do
     python3 tools/approval_executor.py run >> "$LOG_DIR/executor.log" 2>&1
 
     # Watchdog — check agent health every 6 hours
-    LAST_WATCHDOG=$(python3 -c "
+    WATCHDOG_DUE=$(python3 -c "
 import sqlite3
+from datetime import datetime, timezone, timedelta
 conn = sqlite3.connect('data/groundswell.db')
 conn.row_factory = sqlite3.Row
 r = conn.execute(\"SELECT timestamp FROM events WHERE agent='watchdog' ORDER BY id DESC LIMIT 1\").fetchone()
-print(r['timestamp'][:19] if r else '2020-01-01T00:00:00')
+if not r:
+    print('yes')
+else:
+    last = datetime.fromisoformat(r['timestamp'][:19] + '+00:00')
+    print('yes' if datetime.now(timezone.utc) - last > timedelta(hours=6) else 'no')
 conn.close()
-" 2>/dev/null)
-    HOURS_SINCE=$(python3 -c "
-from datetime import datetime, timezone
-last = datetime.fromisoformat('${LAST_WATCHDOG}'.replace('Z','+00:00'))
-now = datetime.now(timezone.utc)
-print(int((now - last).total_seconds() / 3600))
-" 2>/dev/null || echo 999)
-    if [ "$HOURS_SINCE" -ge 6 ]; then
+" 2>/dev/null || echo "yes")
+    if [ "$WATCHDOG_DUE" = "yes" ]; then
         python3 tools/watchdog.py check >> "$LOG_DIR/watchdog.log" 2>&1
     fi
 
