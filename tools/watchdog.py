@@ -138,6 +138,42 @@ def check():
     except Exception:
         pass
 
+    # 7. Verify actual platform posts exist (trust but verify)
+    # Check last post_sent event for each platform and verify it's live
+    for platform, verify_cmd in [
+        ("x", ["python3", "tools/post.py", "verify", "--platform", "x", "--id"]),
+        # LinkedIn and Threads verification not implemented yet — just check events
+    ]:
+        last_post = conn.execute(
+            "SELECT details FROM events WHERE event_type LIKE '%post_sent%' "
+            "AND details LIKE ? AND timestamp > datetime('now', '-48 hours') "
+            "ORDER BY id DESC LIMIT 1",
+            (f'%{platform}%',),
+        ).fetchone()
+
+        if last_post and last_post["details"]:
+            try:
+                d = json.loads(last_post["details"])
+                post_id = d.get("post_id")
+                if post_id and platform == "x":
+                    result = subprocess.run(
+                        verify_cmd + [str(post_id)],
+                        capture_output=True, text=True, timeout=15,
+                        cwd=os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                    )
+                    try:
+                        vdata = json.loads(result.stdout)
+                        if not vdata.get("verified") and not vdata.get("ok"):
+                            alerts.append({
+                                "type": "ghost_post",
+                                "severity": "high",
+                                "message": f"X post {post_id} logged as sent but NOT verified on platform. Ghost post.",
+                            })
+                    except (json.JSONDecodeError, Exception):
+                        pass
+            except (json.JSONDecodeError, Exception):
+                pass
+
     # Send alerts to Telegram
     if alerts:
         alert_text = f"🚨 *Watchdog Alert* — {len(alerts)} issue(s)\n\n"
