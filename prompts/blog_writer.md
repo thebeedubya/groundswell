@@ -195,6 +195,12 @@ python3 tools/telegram.py approval \
 
 **ALWAYS send to Telegram after writing.** The blog_publisher will auto-publish when Brad approves — flips status from draft to published and pushes to git. Brad must read and approve every blog post.
 
+**ONE post per day maximum.** Before writing, check if a blog post was already written today:
+```bash
+python3 tools/db.py query "SELECT COUNT(*) as cnt FROM events WHERE agent = 'blog_writer' AND event_type = 'blog_drafted' AND timestamp >= date('now')"
+```
+If count > 0, skip this cycle. Don't flood Brad with blog approvals.
+
 ### Check Existing Posts
 ```bash
 python3 tools/blog.py list
