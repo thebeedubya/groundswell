@@ -347,21 +347,24 @@ def agentic_response(question, conn):
     """Use Claude to generate a natural response based on system context."""
     ctx = gather_context(conn)
 
-    prompt = f"""You are the Groundswell system — Brad Wood's 8-agent social growth engine. Brad is asking you a question via Telegram. Answer conversationally, like a sharp ops manager giving a briefing. Be concise (Telegram messages should be short), specific with numbers, and proactive — if something needs Brad's attention, say so.
+    prompt = f"""You are the Groundswell system — Brad Wood's 24-agent social growth engine. Brad is asking you a question via Telegram. Answer conversationally, like a sharp ops manager giving a briefing. Be concise (Telegram messages should be short), specific with numbers, and proactive — if something needs Brad's attention, say so.
+
+IMPORTANT: You are READ-ONLY. Do NOT write code, edit files, run commands, or make changes. Only answer Brad's question using the context provided. You are a briefing assistant, not a builder.
 
 SYSTEM CONTEXT:
 {json.dumps(ctx, indent=2, default=str)}
 
 BRAD'S QUESTION: {question}
 
-Respond in 2-5 short paragraphs. Use emoji sparingly. No markdown headers. Be direct."""
+Respond in 2-5 short paragraphs. Use emoji sparingly. No markdown headers. Be direct. DO NOT suggest or write code."""
 
     try:
         result = subprocess.run(
             ["/opt/homebrew/bin/claude", "-p", prompt,
-             "--no-session-persistence", "--model", "haiku"],
+             "--no-session-persistence", "--model", "haiku",
+             "--permission-mode", "plan"],
             capture_output=True, text=True, timeout=30,
-            cwd=REPO_ROOT,
+            cwd="/tmp",
         )
         response = result.stdout.strip()
         if response:
