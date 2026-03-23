@@ -62,6 +62,25 @@ while true; do
     # Execute any approved items (API → Playwright fallback) — every cycle
     python3 tools/approval_executor.py run >> "$LOG_DIR/executor.log" 2>&1
 
+    # Watchdog — check agent health every 6 hours
+    LAST_WATCHDOG=$(python3 -c "
+import sqlite3
+conn = sqlite3.connect('data/groundswell.db')
+conn.row_factory = sqlite3.Row
+r = conn.execute(\"SELECT timestamp FROM events WHERE agent='watchdog' ORDER BY id DESC LIMIT 1\").fetchone()
+print(r['timestamp'][:19] if r else '2020-01-01T00:00:00')
+conn.close()
+" 2>/dev/null)
+    HOURS_SINCE=$(python3 -c "
+from datetime import datetime, timezone
+last = datetime.fromisoformat('${LAST_WATCHDOG}'.replace('Z','+00:00'))
+now = datetime.now(timezone.utc)
+print(int((now - last).total_seconds() / 3600))
+" 2>/dev/null || echo 999)
+    if [ "$HOURS_SINCE" -ge 6 ]; then
+        python3 tools/watchdog.py check >> "$LOG_DIR/watchdog.log" 2>&1
+    fi
+
     # Run one orchestrator cycle
     LOG_FILE="$LOG_DIR/orchestrator-$(date +%Y-%m-%d).log"
     echo "--- $(date -u +%Y-%m-%dT%H:%M:%SZ) ---" >> "$LOG_FILE"
