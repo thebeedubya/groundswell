@@ -63,6 +63,7 @@ while true; do
     python3 tools/approval_executor.py run >> "$LOG_DIR/executor.log" 2>&1
 
     # Watchdog — check agent health every 6 hours
+    # Watchdog -- every 30 min for campaign monitoring, health checks
     WATCHDOG_DUE=$(python3 -c "
 import sqlite3
 from datetime import datetime, timezone, timedelta
@@ -73,7 +74,7 @@ if not r:
     print('yes')
 else:
     last = datetime.fromisoformat(r['timestamp'][:19] + '+00:00')
-    print('yes' if datetime.now(timezone.utc) - last > timedelta(hours=6) else 'no')
+    print('yes' if datetime.now(timezone.utc) - last > timedelta(minutes=30) else 'no')
 conn.close()
 " 2>/dev/null || echo "yes")
     if [ "$WATCHDOG_DUE" = "yes" ]; then
