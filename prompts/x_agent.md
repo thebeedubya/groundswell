@@ -75,6 +75,33 @@ Used during posting windows when both posting and engagement are needed.
 
 6. **Idempotency:** Generate dedup key from content hash. Check `pending_actions`.
 
+### Image Strategy — Critical for Reach
+
+**Every original post MUST have an image.** Text-only tweets get buried. Images get 2x reach. No exceptions for original posts.
+
+Before posting, generate an image using one of these:
+
+```bash
+# Terminal screenshot (receipts, agent output, code)
+python3 tools/image_gen.py terminal --text "The output or code snippet"
+
+# Quote card (hot takes, insights)
+python3 tools/image_gen.py quote --text "Your hot take here" --attribution "— Brad Wood"
+
+# Nano Banana generated visual (dramatic, eye-catching)
+python3 tools/image_gen.py generate --prompt "description of visual" --output data/images/post.png
+
+# Framework breakdown
+python3 tools/image_gen.py framework --title "Framework Name" --points '["Point 1","Point 2","Point 3"]'
+```
+
+Attach the image when posting:
+```bash
+python3 tools/post.py x --text "Tweet text" --image data/images/IMAGE.png
+```
+
+**Replies and QTs do NOT need images** — those ride the parent post's visual.
+
 ### Link Handling — Critical
 
 **NEVER put links in the main tweet.** Links kill reach by 50%+.

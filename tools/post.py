@@ -58,6 +58,55 @@ def _log_api_call(platform, call_type, endpoint):
 # Subcommand handlers
 # ---------------------------------------------------------------------------
 
+def _upload_x_media(image_path, env):
+    """Upload an image to X media endpoint. Returns media_id string or None."""
+    import mimetypes
+    import uuid
+
+    upload_url = "https://upload.twitter.com/1.1/media/upload.json"
+
+    # Read image
+    with open(image_path, "rb") as f:
+        image_data = f.read()
+
+    content_type = mimetypes.guess_type(image_path)[0] or "image/png"
+
+    # Build multipart form data
+    boundary = f"----PythonBoundary{uuid.uuid4().hex}"
+    body_parts = []
+    body_parts.append(f"--{boundary}".encode())
+    body_parts.append(f'Content-Disposition: form-data; name="media_data"'.encode())
+    body_parts.append(b"")
+
+    import base64
+    body_parts.append(base64.b64encode(image_data))
+    body_parts.append(f"--{boundary}--".encode())
+
+    body = b"\r\n".join(body_parts)
+
+    auth_header = _build_auth_header(
+        "POST", upload_url, {},
+        env["X_API_KEY"], env["X_API_SECRET"],
+        env["X_ACCESS_TOKEN"], env["X_ACCESS_TOKEN_SECRET"],
+    )
+
+    req = urllib.request.Request(upload_url, data=body, method="POST")
+    req.add_header("Authorization", auth_header)
+    req.add_header("Content-Type", f"multipart/form-data; boundary={boundary}")
+
+    try:
+        with urllib.request.urlopen(req) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+            media_id = data.get("media_id_string")
+            _log_api_call("x", "write", "/1.1/media/upload")
+            print(f"[x_media] Uploaded: media_id={media_id}", file=sys.stderr)
+            return media_id
+    except urllib.error.HTTPError as e:
+        body = e.read().decode("utf-8", errors="replace")
+        print(f"[x_media] Upload failed: {e.code} {body}", file=sys.stderr)
+        return None
+
+
 def cmd_x(args):
     text = args.text
     if not text:
@@ -69,8 +118,10 @@ def cmd_x(args):
         print(f"Missing credentials: {', '.join(missing)}", file=sys.stderr)
         sys.exit(1)
 
-    if args.image:
-        print("[stub] Image upload not yet implemented — posting text only", file=sys.stderr)
+    # Upload image if provided
+    media_id = None
+    if args.image and os.path.exists(args.image):
+        media_id = _upload_x_media(args.image, env)
 
     # Build JSON body
     body = {"text": text}
@@ -78,9 +129,10 @@ def cmd_x(args):
         body["reply"] = {"in_reply_to_tweet_id": args.reply_to}
     if args.quote_tweet_id:
         body["quote_tweet_id"] = args.quote_tweet_id
+    if media_id:
+        body["media"] = {"media_ids": [media_id]}
 
     url = "https://api.x.com/2/tweets"
-    # POST with JSON body: only oauth params in signature (no body params)
     auth_header = _build_auth_header(
         "POST", url, {},
         env["X_API_KEY"], env["X_API_SECRET"],
@@ -102,6 +154,7 @@ def cmd_x(args):
                 "platform": "x",
                 "post_id": post_id,
                 "text": text,
+                "has_image": bool(media_id),
             })
     except urllib.error.HTTPError as e:
         err = _api_error(e)
