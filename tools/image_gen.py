@@ -55,6 +55,10 @@ DOT_GREEN = (39, 201, 63)
 CAROUSEL_W = 1080
 CAROUSEL_H = 1350
 
+# X post: 1600x900 (16:9) -- maximizes feed real estate
+X_POST_W = 1600
+X_POST_H = 900
+
 # Square (IG/general): 1080x1080
 SQUARE_W = 1080
 SQUARE_H = 1080
@@ -135,6 +139,218 @@ def _resolve_output(output_arg, prefix):
             os.makedirs(out_dir, exist_ok=True)
         return output_arg
     return os.path.join(IMAGE_DIR, _gen_filename(prefix))
+
+
+# ---------------------------------------------------------------------------
+# Bold Statement Card (gregisenberg pattern -- scroll stopper)
+# ---------------------------------------------------------------------------
+
+def gen_bold_statement(text, output, accent_color=None):
+    """Giant bold text on dark background. 4-8 words max. No quotes, no attribution.
+    This is a provocation, not a quote card."""
+    img = Image.new("RGB", (X_POST_W, X_POST_H), BG_DARK)
+    draw = ImageDraw.Draw(img)
+
+    accent = accent_color or ACCENT_GREEN
+    # Accent bar
+    draw.rectangle([(0, 0), (X_POST_W, 6)], fill=accent)
+
+    # Giant text -- as big as possible
+    for size in range(90, 30, -4):
+        font = _load_font(size, bold=True, sans=True)
+        lines = _wrap_text(text, font, X_POST_W - 160, draw)
+        lh = _line_height(font)
+        total_h = len(lines) * lh
+        if total_h < X_POST_H - 160:
+            break
+
+    start_y = (X_POST_H - total_h) // 2
+    for i, line in enumerate(lines):
+        draw.text((X_POST_W // 2, start_y + i * lh), line, font=font, fill=WHITE, anchor="mm")
+
+    # Subtle branding bottom right
+    bf = _load_font(16)
+    draw.text((X_POST_W - 40, X_POST_H - 30), "@thebeedubaya", font=bf, fill=DIM_GRAY, anchor="rm")
+
+    output_path = _resolve_output(output, "bold")
+    img.save(output_path, "PNG")
+    return output_path
+
+
+# ---------------------------------------------------------------------------
+# Metric Card (levelsio pattern -- raw dashboard feel)
+# ---------------------------------------------------------------------------
+
+def gen_metric(number, label, sublabel=None, trend=None, output=None):
+    """Big number with label. Looks like a raw dashboard metric. Deliberately minimal."""
+    img = Image.new("RGB", (X_POST_W, X_POST_H), BG_DARK)
+    draw = ImageDraw.Draw(img)
+
+    # Accent bar
+    draw.rectangle([(0, 0), (X_POST_W, 4)], fill=ACCENT_GREEN)
+
+    # Big number
+    num_font = _load_font(140, bold=True, sans=True)
+    draw.text((X_POST_W // 2, X_POST_H // 2 - 60), str(number), font=num_font, fill=ACCENT_GREEN, anchor="mm")
+
+    # Label
+    label_font = _load_font(32, sans=True)
+    draw.text((X_POST_W // 2, X_POST_H // 2 + 50), label.upper(), font=label_font, fill=GRAY, anchor="mm")
+
+    # Sublabel
+    if sublabel:
+        sub_font = _load_font(22, sans=True)
+        draw.text((X_POST_W // 2, X_POST_H // 2 + 95), sublabel, font=sub_font, fill=DIM_GRAY, anchor="mm")
+
+    # Trend arrow
+    if trend:
+        trend_font = _load_font(28, bold=True, sans=True)
+        color = ACCENT_GREEN if trend.startswith("+") else (255, 95, 86)
+        draw.text((X_POST_W // 2, X_POST_H // 2 + 140), trend, font=trend_font, fill=color, anchor="mm")
+
+    bf = _load_font(16)
+    draw.text((X_POST_W - 40, X_POST_H - 30), "@thebeedubaya", font=bf, fill=DIM_GRAY, anchor="rm")
+
+    output_path = _resolve_output(output, "metric")
+    img.save(output_path, "PNG")
+    return output_path
+
+
+# ---------------------------------------------------------------------------
+# Comparison Card (before/after, split screen)
+# ---------------------------------------------------------------------------
+
+def gen_comparison(left_label, left_value, right_label, right_value, title=None, output=None):
+    """Split screen comparison. Left vs Right. Clear visual contrast."""
+    img = Image.new("RGB", (X_POST_W, X_POST_H), BG_DARK)
+    draw = ImageDraw.Draw(img)
+
+    mid = X_POST_W // 2
+
+    # Divider
+    draw.line([(mid, 80), (mid, X_POST_H - 60)], fill=DIM_GRAY, width=2)
+
+    # Title
+    if title:
+        tf = _load_font(28, bold=True, sans=True)
+        draw.text((X_POST_W // 2, 40), title, font=tf, fill=WHITE, anchor="mm")
+
+    # Left side (red/old)
+    left_color = (255, 95, 86)  # red
+    lf = _load_font(24, sans=True)
+    draw.text((mid // 2, 120), left_label.upper(), font=lf, fill=left_color, anchor="mm")
+    vf = _load_font(72, bold=True, sans=True)
+    draw.text((mid // 2, X_POST_H // 2), str(left_value), font=vf, fill=left_color, anchor="mm")
+
+    # Right side (green/new)
+    right_color = ACCENT_GREEN
+    draw.text((mid + mid // 2, 120), right_label.upper(), font=lf, fill=right_color, anchor="mm")
+    draw.text((mid + mid // 2, X_POST_H // 2), str(right_value), font=vf, fill=right_color, anchor="mm")
+
+    bf = _load_font(16)
+    draw.text((X_POST_W - 40, X_POST_H - 30), "@thebeedubaya", font=bf, fill=DIM_GRAY, anchor="rm")
+
+    output_path = _resolve_output(output, "comparison")
+    img.save(output_path, "PNG")
+    return output_path
+
+
+# ---------------------------------------------------------------------------
+# Terminal 16:9 (X-optimized version)
+# ---------------------------------------------------------------------------
+
+def gen_terminal_x(text, output):
+    """Terminal screenshot at 16:9 for X. Maximizes feed real estate."""
+    img = Image.new("RGB", (X_POST_W, X_POST_H), BG_DARK)
+    draw = ImageDraw.Draw(img)
+
+    # Terminal chrome
+    bar_height = 48
+    draw.rectangle([(0, 0), (X_POST_W, bar_height)], fill=(30, 33, 40))
+    dot_y = bar_height // 2
+    for i, color in enumerate([DOT_RED, DOT_YELLOW, DOT_GREEN]):
+        cx = 30 + i * 24
+        draw.ellipse([(cx - 7, dot_y - 7), (cx + 7, dot_y + 7)], fill=color)
+
+    title_font = _load_font(16)
+    draw.text((X_POST_W // 2, dot_y), "brad@forge -- ~", font=title_font, fill=GRAY, anchor="mm")
+
+    # Body
+    body_font = _load_font(22)
+    margin = 40
+    lh = _line_height(body_font)
+    prompt = "brad@forge:~$ "
+    lines = _wrap_text(prompt + text, body_font, X_POST_W - margin * 2, draw)
+
+    y = bar_height + 30
+    for i, line in enumerate(lines):
+        if y + lh > X_POST_H - 30:
+            break
+        if i == 0:
+            pbbox = draw.textbbox((margin, y), prompt, font=body_font)
+            draw.text((margin, y), prompt, font=body_font, fill=ACCENT_TEAL)
+            draw.text((pbbox[2], y), line[len(prompt):], font=body_font, fill=ACCENT_GREEN)
+        else:
+            draw.text((margin, y), line, font=body_font, fill=ACCENT_GREEN)
+        y += lh
+
+    # Cursor
+    if y + lh < X_POST_H - 30:
+        draw.rectangle([(margin, y + 4), (margin + 12, y + lh - 2)], fill=ACCENT_GREEN)
+
+    output_path = _resolve_output(output, "terminal-x")
+    img.save(output_path, "PNG")
+    return output_path
+
+
+# ---------------------------------------------------------------------------
+# Data Bar Chart (simple, dark aesthetic)
+# ---------------------------------------------------------------------------
+
+def gen_bar_chart(title, data, output=None):
+    """Simple horizontal bar chart. data is dict of {label: value}."""
+    img = Image.new("RGB", (X_POST_W, X_POST_H), BG_DARK)
+    draw = ImageDraw.Draw(img)
+
+    draw.rectangle([(0, 0), (X_POST_W, 4)], fill=ACCENT_GREEN)
+
+    # Title
+    tf = _load_font(32, bold=True, sans=True)
+    draw.text((60, 40), title, font=tf, fill=WHITE)
+
+    # Bars
+    items = list(data.items())
+    max_val = max(data.values()) if data else 1
+    bar_area_top = 110
+    bar_area_bottom = X_POST_H - 50
+    bar_h = min(50, (bar_area_bottom - bar_area_top) // max(len(items), 1) - 12)
+    max_bar_w = X_POST_W - 320
+
+    label_font = _load_font(20, sans=True)
+    val_font = _load_font(20, bold=True, sans=True)
+    colors = [ACCENT_GREEN, ACCENT_TEAL, ACCENT_PURPLE, ACCENT_ORANGE]
+
+    for i, (label, value) in enumerate(items):
+        y = bar_area_top + i * (bar_h + 12)
+        if y + bar_h > bar_area_bottom:
+            break
+
+        color = colors[i % len(colors)]
+        bar_w = int((value / max_val) * max_bar_w)
+
+        # Label
+        draw.text((60, y + bar_h // 2), label, font=label_font, fill=GRAY, anchor="lm")
+
+        # Bar
+        bar_x = 240
+        draw.rectangle([(bar_x, y), (bar_x + bar_w, y + bar_h)], fill=color)
+
+        # Value
+        draw.text((bar_x + bar_w + 12, y + bar_h // 2), str(value), font=val_font, fill=WHITE, anchor="lm")
+
+    output_path = _resolve_output(output, "chart")
+    img.save(output_path, "PNG")
+    return output_path
 
 
 # ---------------------------------------------------------------------------
@@ -598,6 +814,34 @@ def build_parser():
     p.add_argument("--points", required=True, help="JSON array of point strings")
     p.add_argument("--output", default=None)
 
+    p = sub.add_parser("bold", help="Bold statement card (scroll stopper)")
+    p.add_argument("--text", required=True)
+    p.add_argument("--output", default=None)
+
+    p = sub.add_parser("metric", help="Big number metric card")
+    p.add_argument("--number", required=True)
+    p.add_argument("--label", required=True)
+    p.add_argument("--sublabel", default=None)
+    p.add_argument("--trend", default=None)
+    p.add_argument("--output", default=None)
+
+    p = sub.add_parser("comparison", help="Split-screen before/after")
+    p.add_argument("--left-label", required=True)
+    p.add_argument("--left-value", required=True)
+    p.add_argument("--right-label", required=True)
+    p.add_argument("--right-value", required=True)
+    p.add_argument("--title", default=None)
+    p.add_argument("--output", default=None)
+
+    p = sub.add_parser("terminal-x", help="Terminal screenshot 16:9 for X")
+    p.add_argument("--text", required=True)
+    p.add_argument("--output", default=None)
+
+    p = sub.add_parser("chart", help="Horizontal bar chart")
+    p.add_argument("--title", required=True)
+    p.add_argument("--data", required=True, help="JSON object {label: value}")
+    p.add_argument("--output", default=None)
+
     p = sub.add_parser("overlay", help="Nano Banana image + text overlay")
     p.add_argument("--prompt", required=True, help="Image generation prompt")
     p.add_argument("--title", required=True)
@@ -631,6 +875,22 @@ def main():
     elif args.command == "framework":
         points = json.loads(args.points)
         path = gen_framework(args.title, points, args.output)
+        emit({"ok": True, "image_path": path})
+    elif args.command == "bold":
+        path = gen_bold_statement(args.text, args.output)
+        emit({"ok": True, "image_path": path})
+    elif args.command == "metric":
+        path = gen_metric(args.number, args.label, args.sublabel, args.trend, args.output)
+        emit({"ok": True, "image_path": path})
+    elif args.command == "comparison":
+        path = gen_comparison(args.left_label, args.left_value, args.right_label, args.right_value, args.title, args.output)
+        emit({"ok": True, "image_path": path})
+    elif args.command == "terminal-x":
+        path = gen_terminal_x(args.text, args.output)
+        emit({"ok": True, "image_path": path})
+    elif args.command == "chart":
+        data = json.loads(args.data)
+        path = gen_bar_chart(args.title, data, args.output)
         emit({"ok": True, "image_path": path})
     elif args.command == "overlay":
         path = gen_with_overlay(args.prompt, args.title, args.body, args.output)
