@@ -246,6 +246,57 @@ asyncio.run(verify())
             except (json.JSONDecodeError, Exception):
                 pass
 
+    # 8. Monitor tracked campaign posts for engagement spikes
+    tracked = conn.execute(
+        "SELECT details FROM events WHERE agent = 'monitor' AND event_type = 'track_post' "
+        "AND details LIKE '%monitor_until%' ORDER BY id DESC LIMIT 10"
+    ).fetchall()
+
+    for row in tracked:
+        try:
+            d = json.loads(row["details"])
+            post_id = d.get("post_id")
+            monitor_until = d.get("monitor_until", "")
+            if not post_id or monitor_until < datetime.now(timezone.utc).strftime("%Y-%m-%d"):
+                continue
+
+            result = subprocess.run(
+                ["python3", "tools/x_api.py", "tweet", "--id", str(post_id)],
+                capture_output=True, text=True, timeout=15,
+                cwd=os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+            )
+            tdata = json.loads(result.stdout) if result.stdout else {}
+            metrics = tdata.get("data", {}).get("data", {}).get("public_metrics", {})
+            impressions = metrics.get("impression_count", 0)
+            likes = metrics.get("like_count", 0)
+            retweets = metrics.get("retweet_count", 0)
+            replies = metrics.get("reply_count", 0)
+
+            # Log metrics
+            conn.execute(
+                "INSERT INTO events (timestamp, agent, event_type, details) VALUES (?, ?, ?, ?)",
+                (ts, "monitor", "post_metrics", json.dumps({
+                    "post_id": post_id,
+                    "label": d.get("label"),
+                    "impressions": impressions,
+                    "likes": likes,
+                    "retweets": retweets,
+                    "replies": replies,
+                })),
+            )
+
+            # Alert on breakout (>500 impressions or any retweet from 64-follower account is significant)
+            if retweets > 0 or likes >= 5 or impressions >= 500:
+                alerts.append({
+                    "type": "engagement_spike",
+                    "severity": "info",
+                    "message": f"Strix post {d.get('label','')}: {impressions} impressions, {likes} likes, {retweets} RTs, {replies} replies",
+                })
+        except Exception:
+            pass
+
+    conn.commit()
+
     # Send alerts to Telegram
     if alerts:
         alert_text = f"🚨 *Watchdog Alert* — {len(alerts)} issue(s)\n\n"
