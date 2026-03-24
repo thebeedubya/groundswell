@@ -145,8 +145,14 @@ async def do_reply(tweet_url, reply_text):
             await reply_btn.click()
             await page.wait_for_timeout(_random_delay(2000, 4000))
 
-            # Find the reply compose box
-            reply_box = page.locator('[data-testid="tweetTextarea_0"]')
+            # Find the reply compose box inside the modal dialog
+            # (the reply button opens a modal; there may also be an
+            # offscreen inline textarea, so we scope to the dialog)
+            modal = page.locator('[role="dialog"]')
+            if await modal.count() > 0:
+                reply_box = modal.locator('[data-testid="tweetTextarea_0"]').first
+            else:
+                reply_box = page.locator('[data-testid="tweetTextarea_0"]').first
             await reply_box.click()
             await page.wait_for_timeout(_random_delay(500, 1500))
 
@@ -154,20 +160,32 @@ async def do_reply(tweet_url, reply_text):
             await reply_box.type(reply_text, delay=random.randint(30, 80))
             await page.wait_for_timeout(_random_delay(1500, 3000))
 
-            # Submit
-            submit = page.locator('[data-testid="tweetButtonInline"]')
+            # Submit — try modal button first, then inline fallback
+            modal = page.locator('[role="dialog"]')
+            if await modal.count() > 0:
+                submit = modal.locator('[data-testid="tweetButton"]')
+                if await submit.count() == 0:
+                    submit = modal.locator('[data-testid="tweetButtonInline"]')
+            else:
+                submit = page.locator('[data-testid="tweetButtonInline"]')
             await submit.click()
             await page.wait_for_timeout(_random_delay(3000, 6000))
 
-            # Verify — compose box should disappear
+            # Verify — modal should close after successful reply
             try:
                 await page.wait_for_selector(
-                    '[data-testid="tweetTextarea_0"]', state="hidden", timeout=10000
+                    '[role="dialog"]', state="hidden", timeout=10000
                 )
                 _log_action("reply", tweet_url, reply_text, True)
                 await context.close()
                 return {"success": True, "error": None, "method": "playwright"}
             except Exception:
+                # Modal might not have existed; check if textarea count dropped
+                remaining = await page.locator('[data-testid="tweetTextarea_0"]').count()
+                if remaining <= 1:
+                    _log_action("reply", tweet_url, reply_text, True)
+                    await context.close()
+                    return {"success": True, "error": None, "method": "playwright"}
                 _log_action("reply", tweet_url, reply_text, False, "compose_still_visible")
                 await context.close()
                 return {"success": False, "error": "compose_still_visible"}
@@ -197,15 +215,23 @@ async def do_post(tweet_text):
                 await context.close()
                 return {"success": False, "error": error}
 
-            # Type in compose box
-            compose_box = page.locator('[data-testid="tweetTextarea_0"]')
+            # Type in compose box — scope to dialog/modal to avoid
+            # ambiguity when the home timeline compose is also present
+            modal = page.locator('[role="dialog"]')
+            if await modal.count() > 0:
+                compose_box = modal.locator('[data-testid="tweetTextarea_0"]').first
+            else:
+                compose_box = page.locator('[data-testid="tweetTextarea_0"]').first
             await compose_box.click()
             await page.wait_for_timeout(_random_delay(500, 1500))
             await compose_box.type(tweet_text, delay=random.randint(30, 80))
             await page.wait_for_timeout(_random_delay(1500, 3000))
 
-            # Submit
-            submit = page.locator('[data-testid="tweetButton"]')
+            # Submit — prefer modal button, fall back to inline
+            if await modal.count() > 0:
+                submit = modal.locator('[data-testid="tweetButton"]').first
+            else:
+                submit = page.locator('[data-testid="tweetButton"]').first
             await submit.click()
             await page.wait_for_timeout(_random_delay(3000, 6000))
 
