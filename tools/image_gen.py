@@ -385,7 +385,7 @@ def generate_base_image(prompt, width=1080, height=1080, output=None):
         aspect = "4:5"
 
     response = client.models.generate_content(
-        model="gemini-2.0-flash-exp",
+        model="gemini-2.5-flash-image",
         contents=prompt,
         config=types.GenerateContentConfig(
             response_modalities=["IMAGE"],
@@ -740,44 +740,71 @@ def _carousel_closing_slide(slide):
 # Nano Banana + PIL composite: generate background, overlay text
 # ---------------------------------------------------------------------------
 
-def gen_with_overlay(prompt, title, body, output):
-    """Generate a Nano Banana image and overlay text with PIL."""
+def gen_with_overlay(prompt, title, body, output, width=None, height=None):
+    """Generate a Nano Banana image and overlay text with proper compositing.
+    Text sits in the lower third with gradient overlay for readability."""
+    w = width or X_POST_W
+    h = height or X_POST_H
+
     # Generate base image
-    base_path = generate_base_image(prompt, CAROUSEL_W, CAROUSEL_H)
-    base = Image.open(base_path)
+    base_path = generate_base_image(prompt, w, h)
+    base = Image.open(base_path).resize((w, h), Image.LANCZOS).convert("RGBA")
 
-    # Dark overlay for text readability
-    overlay = Image.new("RGBA", (CAROUSEL_W, CAROUSEL_H), (0, 0, 0, 140))
-    base = base.convert("RGBA")
-    composite = Image.alpha_composite(base, overlay)
-    draw = ImageDraw.Draw(composite)
+    # Gradient overlay -- light at top (preserve visual), heavy at bottom (text zone)
+    overlay = Image.new("RGBA", (w, h), (0, 0, 0, 0))
+    odraw = ImageDraw.Draw(overlay)
+    for y in range(0, h // 3):
+        odraw.rectangle([(0, y), (w, y + 1)], fill=(10, 14, 23, 20))
+    for y in range(h // 3, h):
+        alpha = min(220, 20 + int(200 * ((y - h // 3) / (h * 2 / 3))))
+        odraw.rectangle([(0, y), (w, y + 1)], fill=(10, 14, 23, alpha))
+    base = Image.alpha_composite(base, overlay)
+    draw = ImageDraw.Draw(base)
 
-    # Title
-    title_font = _load_font(44, bold=True, sans=True)
-    tlines = _wrap_text(title, title_font, CAROUSEL_W - 120, draw)
-    y = CAROUSEL_H // 2 - 100
+    # Accent bar at top
+    draw.rectangle([(0, 0), (w, 5)], fill=ACCENT_GREEN)
+
+    # Title in lower third with shadow
+    title_font = _load_font(52, bold=True, sans=True)
+    tlines = _wrap_text(title, title_font, w - 120, draw)
+    lh = _line_height(title_font)
+    # Position in lower third
+    text_y = h - 120 - len(tlines) * lh - (60 if body else 0)
+
     for line in tlines:
-        draw.text((60, y), line, font=title_font, fill=WHITE)
-        y += _line_height(title_font)
+        # Shadow
+        for dx in range(-4, 5):
+            for dy in range(-4, 5):
+                if dx * dx + dy * dy <= 16:
+                    draw.text((60 + dx, text_y + dy), line, font=title_font, fill=(0, 0, 0))
+        draw.text((60, text_y), line, font=title_font, fill=(232, 232, 232))
+        text_y += lh
 
-    # Body
+    # Body text with shadow
     if body:
         body_font = _load_font(26, sans=True)
-        y += 20
-        blines = _wrap_text(body, body_font, CAROUSEL_W - 120, draw)
-        for line in blines[:5]:
-            draw.text((60, y), line, font=body_font, fill=(200, 200, 200))
-            y += _line_height(body_font)
+        text_y += 12
+        blines = _wrap_text(body, body_font, w - 120, draw)
+        for line in blines[:3]:
+            for dx in range(-2, 3):
+                for dy in range(-2, 3):
+                    if dx * dx + dy * dy <= 4:
+                        draw.text((60 + dx, text_y + dy), line, font=body_font, fill=(0, 0, 0))
+            draw.text((60, text_y), line, font=body_font, fill=(122, 139, 160))
+            text_y += _line_height(body_font)
 
-    # Branding
-    brand_font = _load_font(20)
-    draw.text((CAROUSEL_W // 2, CAROUSEL_H - 40), "Brad Wood • AI Operator", font=brand_font, fill=(150, 150, 150), anchor="mm")
+    # Handle
+    bf = _load_font(16)
+    draw.text((w - 30, h - 25), "@thebeedubaya", font=bf, fill=(80, 90, 100), anchor="rm")
 
-    output_path = _resolve_output(output, "overlay")
-    composite.convert("RGB").save(output_path, "PNG")
+    output_path = _resolve_output(output, "composite")
+    base.convert("RGB").save(output_path, "PNG", quality=95)
 
     # Clean up base
-    os.unlink(base_path)
+    try:
+        os.unlink(base_path)
+    except Exception:
+        pass
 
     return output_path
 
