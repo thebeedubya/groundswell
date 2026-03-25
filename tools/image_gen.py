@@ -127,6 +127,86 @@ def _line_height(font):
     return font.getmetrics()[0] + font.getmetrics()[1] + 4
 
 
+def _gradient_bg(width, height, top_color=(13, 17, 23), bottom_color=(10, 14, 20),
+                 accent_pos=None, accent_color=None):
+    """Dark gradient background with optional radial accent glow."""
+    img = Image.new("RGB", (width, height))
+    pixels = img.load()
+    for y in range(height):
+        ratio = y / height
+        r = int(top_color[0] + (bottom_color[0] - top_color[0]) * ratio)
+        g = int(top_color[1] + (bottom_color[1] - top_color[1]) * ratio)
+        b = int(top_color[2] + (bottom_color[2] - top_color[2]) * ratio)
+        for x in range(width):
+            pixels[x, y] = (r, g, b)
+
+    if accent_pos and accent_color:
+        overlay = Image.new("RGBA", (width, height), (0, 0, 0, 0))
+        draw = ImageDraw.Draw(overlay)
+        cx, cy = accent_pos
+        for radius in range(500, 0, -3):
+            opacity = int(15 * (1 - radius / 500))
+            draw.ellipse(
+                [(cx - radius, cy - radius), (cx + radius, cy + radius)],
+                fill=accent_color + (opacity,)
+            )
+        img = Image.alpha_composite(img.convert("RGBA"), overlay).convert("RGB")
+
+    return img
+
+
+def _draw_glow_text(img, position, text, font, glow_color, text_color, blur_radius=12, anchor=None):
+    """Render text with neon glow halo behind it."""
+    base = img.convert("RGBA")
+
+    # Glow layer
+    glow = Image.new("RGBA", img.size, (0, 0, 0, 0))
+    glow_draw = ImageDraw.Draw(glow)
+    kwargs = {"anchor": anchor} if anchor else {}
+    glow_draw.text(position, text, font=font, fill=glow_color + (160,), **kwargs)
+
+    g1 = glow.filter(ImageFilter.GaussianBlur(blur_radius))
+    g2 = glow.filter(ImageFilter.GaussianBlur(blur_radius * 2))
+
+    base = Image.alpha_composite(base, g2)
+    base = Image.alpha_composite(base, g1)
+
+    # Sharp text on top
+    sharp = Image.new("RGBA", img.size, (0, 0, 0, 0))
+    sharp_draw = ImageDraw.Draw(sharp)
+    sharp_draw.text(position, text, font=font, fill=text_color + (255,), **kwargs)
+    base = Image.alpha_composite(base, sharp)
+
+    return base
+
+
+def _add_grain(img, intensity=12):
+    """Add subtle film grain to prevent flat digital look."""
+    import random as _rnd
+    img = img.convert("RGB")
+    pixels = img.load()
+    w, h = img.size
+    for y in range(0, h, 2):
+        for x in range(0, w, 2):
+            noise = int((_rnd.random() - 0.5) * intensity * 2)
+            r, g, b = pixels[x, y]
+            pixels[x, y] = (
+                max(0, min(255, r + noise)),
+                max(0, min(255, g + noise)),
+                max(0, min(255, b + noise)),
+            )
+    return img
+
+
+def _add_scanlines(img, opacity=10, spacing=3):
+    """Add subtle CRT-style scan lines."""
+    overlay = Image.new("RGBA", img.size, (0, 0, 0, 0))
+    draw = ImageDraw.Draw(overlay)
+    for y in range(0, img.size[1], spacing):
+        draw.line([(0, y), (img.size[0], y)], fill=(0, 0, 0, opacity))
+    return Image.alpha_composite(img.convert("RGBA"), overlay).convert("RGB")
+
+
 def _gen_filename(prefix):
     ts = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
     return f"{prefix}-{ts}.png"
@@ -146,29 +226,49 @@ def _resolve_output(output_arg, prefix):
 # ---------------------------------------------------------------------------
 
 def gen_bold_statement(text, output, accent_color=None):
-    """Giant bold text on dark background. 4-8 words max. No quotes, no attribution.
+    """Giant bold text on dark background with neon glow. 4-8 words max.
     This is a provocation, not a quote card."""
-    img = Image.new("RGB", (X_POST_W, X_POST_H), BG_DARK)
+    accent = accent_color or ACCENT_GREEN
+
+    # Gradient background with accent glow
+    img = _gradient_bg(X_POST_W, X_POST_H,
+                       top_color=(13, 17, 23), bottom_color=(8, 11, 18),
+                       accent_pos=(X_POST_W - 200, X_POST_H - 150),
+                       accent_color=accent)
     draw = ImageDraw.Draw(img)
 
-    accent = accent_color or ACCENT_GREEN
-    # Accent bar
-    draw.rectangle([(0, 0), (X_POST_W, 6)], fill=accent)
+    # Vertical accent bar on left with glow
+    bar_x = 60
+    draw.rectangle([(bar_x, 80), (bar_x + 4, X_POST_H - 80)], fill=accent)
+    # Glow behind the bar
+    glow_bar = Image.new("RGBA", (X_POST_W, X_POST_H), (0, 0, 0, 0))
+    gd = ImageDraw.Draw(glow_bar)
+    gd.rectangle([(bar_x - 8, 80), (bar_x + 12, X_POST_H - 80)], fill=accent + (40,))
+    glow_bar = glow_bar.filter(ImageFilter.GaussianBlur(12))
+    img = Image.alpha_composite(img.convert("RGBA"), glow_bar).convert("RGB")
+    draw = ImageDraw.Draw(img)
 
     # Giant text -- as big as possible
     for size in range(90, 30, -4):
         font = _load_font(size, bold=True, sans=True)
-        lines = _wrap_text(text, font, X_POST_W - 160, draw)
+        lines = _wrap_text(text, font, X_POST_W - 200, draw)
         lh = _line_height(font)
         total_h = len(lines) * lh
-        if total_h < X_POST_H - 160:
+        if total_h < X_POST_H - 200:
             break
 
     start_y = (X_POST_H - total_h) // 2
     for i, line in enumerate(lines):
-        draw.text((X_POST_W // 2, start_y + i * lh), line, font=font, fill=WHITE, anchor="mm")
+        # Glow text
+        img = _draw_glow_text(img, (X_POST_W // 2, start_y + i * lh),
+                              line, font, accent, (232, 232, 232),
+                              blur_radius=10, anchor="mm")
 
-    # Subtle branding bottom right
+    # Film grain
+    img = _add_grain(img.convert("RGB"))
+
+    # Branding
+    draw = ImageDraw.Draw(img)
     bf = _load_font(16)
     draw.text((X_POST_W - 40, X_POST_H - 30), "@thebeedubaya", font=bf, fill=DIM_GRAY, anchor="rm")
 
@@ -182,16 +282,19 @@ def gen_bold_statement(text, output, accent_color=None):
 # ---------------------------------------------------------------------------
 
 def gen_metric(number, label, sublabel=None, trend=None, output=None):
-    """Big number with label. Looks like a raw dashboard metric. Deliberately minimal."""
-    img = Image.new("RGB", (X_POST_W, X_POST_H), BG_DARK)
-    draw = ImageDraw.Draw(img)
+    """Big number with neon glow. Dashboard metric with depth."""
+    img = _gradient_bg(X_POST_W, X_POST_H,
+                       top_color=(13, 17, 23), bottom_color=(8, 11, 18),
+                       accent_pos=(X_POST_W // 2, X_POST_H // 2 - 60),
+                       accent_color=ACCENT_GREEN)
 
-    # Accent bar
-    draw.rectangle([(0, 0), (X_POST_W, 4)], fill=ACCENT_GREEN)
-
-    # Big number
+    # Big number with glow
     num_font = _load_font(140, bold=True, sans=True)
-    draw.text((X_POST_W // 2, X_POST_H // 2 - 60), str(number), font=num_font, fill=ACCENT_GREEN, anchor="mm")
+    img = _draw_glow_text(img, (X_POST_W // 2, X_POST_H // 2 - 60),
+                          str(number), num_font, ACCENT_GREEN, (232, 232, 232),
+                          blur_radius=15, anchor="mm")
+
+    draw = ImageDraw.Draw(img)
 
     # Label
     label_font = _load_font(32, sans=True)
@@ -202,12 +305,14 @@ def gen_metric(number, label, sublabel=None, trend=None, output=None):
         sub_font = _load_font(22, sans=True)
         draw.text((X_POST_W // 2, X_POST_H // 2 + 95), sublabel, font=sub_font, fill=DIM_GRAY, anchor="mm")
 
-    # Trend arrow
+    # Trend
     if trend:
         trend_font = _load_font(28, bold=True, sans=True)
         color = ACCENT_GREEN if trend.startswith("+") else (255, 95, 86)
         draw.text((X_POST_W // 2, X_POST_H // 2 + 140), trend, font=trend_font, fill=color, anchor="mm")
 
+    img = _add_grain(img)
+    draw = ImageDraw.Draw(img)
     bf = _load_font(16)
     draw.text((X_POST_W - 40, X_POST_H - 30), "@thebeedubaya", font=bf, fill=DIM_GRAY, anchor="rm")
 
@@ -260,8 +365,9 @@ def gen_comparison(left_label, left_value, right_label, right_value, title=None,
 # ---------------------------------------------------------------------------
 
 def gen_terminal_x(text, output):
-    """Terminal screenshot at 16:9 for X. Maximizes feed real estate."""
-    img = Image.new("RGB", (X_POST_W, X_POST_H), BG_DARK)
+    """Terminal screenshot at 16:9 for X with scanlines and gradient."""
+    img = _gradient_bg(X_POST_W, X_POST_H,
+                       top_color=(13, 17, 23), bottom_color=(8, 10, 16))
     draw = ImageDraw.Draw(img)
 
     # Terminal chrome
@@ -294,9 +400,13 @@ def gen_terminal_x(text, output):
             draw.text((margin, y), line, font=body_font, fill=ACCENT_GREEN)
         y += lh
 
-    # Cursor
+    # Cursor with glow
     if y + lh < X_POST_H - 30:
         draw.rectangle([(margin, y + 4), (margin + 12, y + lh - 2)], fill=ACCENT_GREEN)
+
+    # Scanlines + grain
+    img = _add_scanlines(img, opacity=8, spacing=3)
+    img = _add_grain(img)
 
     output_path = _resolve_output(output, "terminal-x")
     img.save(output_path, "PNG")
