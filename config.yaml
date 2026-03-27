@@ -1,353 +1,341 @@
-# Groundswell Configuration
-# All tunable parameters in one place. Agents read this via tools/db.py.
-
 brand:
-  name: "Brad Wood"
-  handle_x: "@thebeedubaya"
-  handle_linkedin: "brad-wood"
-  identity: "AI Operator"
-  tagline: "44 years building. Deputy CTO turned CCO. Fortune 1000 tools for real-economy operators. Teaching teams to build with AI. Cannabis is the medium. Tech is the art."
-  origin: "Lifelong builder — Osborne Executive at 10, BASIC accounting system, Novell networking, first ambulance EHR, enterprise architecture, Deputy CTO at Riverbed, CCO at Addium"
-  superpower: "Translating complexity into consumption. Taking what the sophisticated world builds and making it work for operators."
-
+  name: Brad Wood
+  handle_x: '@thebeedubaya'
+  handle_linkedin: brad-wood
+  identity: AI Operator
+  tagline: 44 years building. Deputy CTO turned CCO. Fortune 1000 tools for real-economy
+    operators. Teaching teams to build with AI. Cannabis is the medium. Tech is the
+    art.
+  origin: Lifelong builder — Osborne Executive at 10, BASIC accounting system, Novell
+    networking, first ambulance EHR, enterprise architecture, Deputy CTO at Riverbed,
+    CCO at Addium
+  superpower: Translating complexity into consumption. Taking what the sophisticated
+    world builds and making it work for operators.
 seo:
   sites:
     dbradwood:
-      url: "https://dbradwood.com"
-      ga4_id: "G-D1KM6BWGG4"
+      url: https://dbradwood.com
+      ga4_id: G-D1KM6BWGG4
       search_console: true
-      sitemap: "https://dbradwood.com/sitemap.xml"
+      sitemap: https://dbradwood.com/sitemap.xml
     aianna:
-      url: "https://aianna.ai"
-      ga4_id: "G-LMVZ3P4RVJ"
+      url: https://aianna.ai
+      ga4_id: G-LMVZ3P4RVJ
       search_console: true
-      sitemap: null  # Single page, no sitemap yet
-
+      sitemap: null
 platforms:
   x:
     enabled: true
-    max_posts_per_day: 3        # CRITICAL: was 8, tanking algorithm score at 64 followers
+    max_posts_per_day: 3
     max_replies_per_hour: 10
-    max_replies_per_day: 20     # Strategic replies to 10K+ accounts ONLY
-    # API RATE LIMITS — X Pay Per Use is 1,500 posts/month + 10K reads
-    # Budget: 50 posts/day max, 300 reads/day max
+    max_replies_per_day: 20
     api_budget:
       posts_per_day: 50
       reads_per_day: 300
       searches_per_day: 20
-      mentions_checks_per_day: 24    # once per hour
-      metrics_checks_per_day: 6      # every 4 hours
-    link_in_reply: true      # Never put links in main tweet
-    image_boost: true        # Attach screenshots when available
-    # Posting windows (CT) — only post original content in these windows
-    # Replies/engagement can happen anytime
+      mentions_checks_per_day: 24
+      metrics_checks_per_day: 6
+    link_in_reply: true
+    image_boost: true
     post_windows:
-      weekday: ["07:00-09:00", "11:30-13:00", "17:00-18:30"]
-      weekend: ["08:00-10:00", "12:00-13:00"]
+      weekday:
+      - 07:00-09:00
+      - 11:30-13:00
+      - 17:00-18:30
+      weekend:
+      - 08:00-10:00
+      - 12:00-13:00
   linkedin:
     enabled: true
-    max_posts_per_day: 2     # More than 2 cannibalizes reach
-    min_word_count: 200      # Dwell time is king
-    target_word_count: 800   # Sweet spot for cannabis content
-    link_in_comment: true    # Never put links in post body
-    # LinkedIn peaks Tues-Thurs morning. Never post evenings/weekends.
+    max_posts_per_day: 2
+    min_word_count: 200
+    target_word_count: 800
+    link_in_comment: true
     post_windows:
-      weekday: ["07:30-10:00", "12:00-13:00"]
-      weekend: []             # Never post to LinkedIn on weekends
+      weekday:
+      - 07:30-10:00
+      - 12:00-13:00
+      weekend: []
   threads:
-    enabled: false           # Enable when access token ready
+    enabled: false
     max_posts_per_day: 4
     no_hashtags: true
-
 schedule:
-  # All times in CT (America/Chicago)
-  timezone: "America/Chicago"
-
+  timezone: America/Chicago
   tasks:
-    # --- Platform agents (via Marketing Manager) ---
     marketing_manager:
       agent: marketing_manager
-      # DISABLED: Algorithm recovery. No new content routing until engagement recovers.
-      daily_at: ["08:00", "12:00", "17:00"]
+      daily_at:
+      - 08:00
+      - '12:00'
+      - '17:00'
       jitter_minutes: 15
       timeout_seconds: 180
       enabled: false
-
     inbound_x:
       agent: x_agent
-      # Direct orchestrator→x_agent dispatch for mention checks (not via MM)
       interval_minutes: 30
       jitter_minutes: 5
       timeout_seconds: 120
       enabled: true
-
     outbound_x:
       agent: x_agent
-      # REPLY-ONLY MODE: No original posts. Only strategic replies to 10K+ accounts via Playwright.
-      daily_at: ["08:00", "12:00", "17:00"]
+      daily_at:
+      - 08:00
+      - '12:00'
+      - '17:00'
       jitter_minutes: 15
       timeout_seconds: 180
       enabled: true
-
     outbound_linkedin:
       agent: linkedin_agent
-      # Direct orchestrator→linkedin_agent dispatch for posting content
-      daily_at: ["08:00", "12:00"]
+      daily_at:
+      - 08:00
+      - '12:00'
       jitter_minutes: 15
       timeout_seconds: 180
-      enabled: true
-
-    # --- RSS infrastructure ---
+      enabled: false
     rss_fetch:
       agent: rss_fetch
-      # Pure Python tool, zero Claude cost
       interval_minutes: 30
       jitter_minutes: 5
       timeout_seconds: 60
       enabled: true
-
     rss_scout_tech:
       agent: rss_scout_tech
-      # Score tech/AI RSS items 3x/day
-      daily_at: ["07:30", "12:00", "17:30"]
+      daily_at:
+      - 07:30
+      - '12:00'
+      - '17:30'
       jitter_minutes: 10
       timeout_seconds: 120
       enabled: true
-
     rss_scout_cannabis:
       agent: rss_scout_cannabis
-      # Score cannabis RSS items 3x/day
-      daily_at: ["07:30", "12:00", "17:30"]
+      daily_at:
+      - 07:30
+      - '12:00'
+      - '17:30'
       jitter_minutes: 10
       timeout_seconds: 120
       enabled: true
-
-    # --- X Scout (X-only monitoring, stripped of RSS) ---
     x_scout:
       agent: x_scout
-      # Tier 1 monitoring, X trend detection, competitive monitoring
-      daily_at: ["07:30", "12:00", "17:30"]
+      daily_at:
+      - 07:30
+      - '12:00'
+      - '17:30'
       jitter_minutes: 10
       timeout_seconds: 180
       enabled: true
-
-    # --- Blog Writer (daily long-form content engine) ---
     blog_writer:
       agent: blog_writer
-      # Write one blog post per day, early morning before posting windows
-      daily_at: ["06:30"]
+      daily_at:
+      - 06:30
       jitter_minutes: 10
       timeout_seconds: 300
       enabled: true
-
-    # --- Approval triage (auto-expire stale, digest actionable) ---
     approval_triage:
       agent: approval_triage
-      # Run 2x/day — morning and evening. Expires >12h stale, sends digest.
-      daily_at: ["07:00", "18:00"]
+      daily_at:
+      - 07:00
+      - '18:00'
       jitter_minutes: 5
       timeout_seconds: 30
       enabled: true
-
-    # --- Legacy agents (disabled — replaced by new architecture) ---
     publisher_x:
       agent: publisher
-      daily_at: ["07:00", "08:00", "11:30", "12:30", "17:00"]
-      jitter_minutes: 15
-      timeout_seconds: 120
-      enabled: false  # Replaced by marketing_manager → x_agent
-
-    publisher_linkedin:
-      agent: publisher
-      daily_at: ["08:00", "12:00"]
-      jitter_minutes: 15
-      timeout_seconds: 120
-      enabled: false  # Replaced by marketing_manager → linkedin_agent
-
-    threads_agent:
-      agent: threads_agent
-      # DISABLED: Algorithm recovery across all platforms.
-      daily_at: ["07:30", "12:00", "17:00"]
+      daily_at:
+      - 07:00
+      - 08:00
+      - '11:30'
+      - '12:30'
+      - '17:00'
       jitter_minutes: 15
       timeout_seconds: 120
       enabled: false
-
+    publisher_linkedin:
+      agent: publisher
+      daily_at:
+      - 08:00
+      - '12:00'
+      jitter_minutes: 15
+      timeout_seconds: 120
+      enabled: false
+    threads_agent:
+      agent: threads_agent
+      daily_at:
+      - 07:30
+      - '12:00'
+      - '17:00'
+      jitter_minutes: 15
+      timeout_seconds: 120
+      enabled: false
     publisher_threads:
       agent: publisher
       interval_minutes: 180
       jitter_minutes: 30
       timeout_seconds: 120
-      enabled: false  # Replaced by threads_agent
-
+      enabled: false
     outbound_engager:
       agent: outbound_engager
-      daily_at: ["07:30", "11:30", "14:00", "17:30"]
+      daily_at:
+      - 07:30
+      - '11:30'
+      - '14:00'
+      - '17:30'
       jitter_minutes: 10
       timeout_seconds: 180
-      enabled: false  # Replaced by marketing_manager → x_agent/linkedin_agent
-
+      enabled: false
     inbound_engager:
       agent: inbound_engager
       interval_minutes: 30
       jitter_minutes: 5
       timeout_seconds: 120
-      enabled: false  # Replaced by inbound_x → x_agent
-
+      enabled: false
     scout:
       agent: scout
-      daily_at: ["07:30", "12:00", "17:30"]
+      daily_at:
+      - 07:30
+      - '12:00'
+      - '17:30'
       jitter_minutes: 10
       timeout_seconds: 180
-      enabled: false  # Replaced by x_scout + rss_scout_tech + rss_scout_cannabis
-
+      enabled: false
     analyst_snapshot:
       agent: analyst
-      daily_at: ["06:00"]
+      daily_at:
+      - 06:00
       jitter_minutes: 5
       timeout_seconds: 300
       enabled: true
-
     analyst_weekly:
       agent: analyst
-      weekly_at: "sunday 06:00"
+      weekly_at: sunday 06:00
       jitter_minutes: 0
       timeout_seconds: 600
       enabled: true
-
     creator:
       agent: creator
       interval_minutes: 240
       jitter_minutes: 30
       timeout_seconds: 300
-      enabled: true
-
+      enabled: false
     diary:
       agent: diary
-      daily_at: ["09:00"]
+      daily_at:
+      - 09:00
       jitter_minutes: 5
       timeout_seconds: 300
       enabled: true
-
     blog_publisher:
       agent: blog_publisher
-      # Publish queued blog posts twice a week (Tues/Thurs mornings)
-      daily_at: ["08:00"]
+      daily_at:
+      - 08:00
       jitter_minutes: 10
       timeout_seconds: 300
       enabled: true
-
     seo_daily:
       agent: seo
-      daily_at: ["06:30"]
+      daily_at:
+      - 06:30
       jitter_minutes: 5
       timeout_seconds: 300
       enabled: true
-
     seo_weekly:
       agent: seo
-      weekly_at: "sunday 07:00"
+      weekly_at: sunday 07:00
       jitter_minutes: 0
       timeout_seconds: 600
       enabled: true
-
 policy:
   brand_safety:
-    initial_color: "GREEN"
-    # GREEN = normal ops, YELLOW = reduced volume, RED = approvals only, BLACK = full halt
-    colors: ["GREEN", "YELLOW", "RED", "BLACK"]
-
+    initial_color: GREEN
+    colors:
+    - GREEN
+    - YELLOW
+    - RED
+    - BLACK
   content_filter:
     blocked_topics:
-      - partisan_politics
-      - religion
-      - personal_attacks
-      - competitor_bashing
-      - financial_advice
-      - medical_claims
+    - partisan_politics
+    - religion
+    - personal_attacks
+    - competitor_bashing
+    - financial_advice
+    - medical_claims
     cannabis_rules:
-      never_say: ["replace your staff", "cut headcount", "fire your compliance team"]
-      always_say_instead: ["free your team", "scale without adding overhead", "let your people do what they're best at"]
+      never_say:
+      - replace your staff
+      - cut headcount
+      - fire your compliance team
+      always_say_instead:
+      - free your team
+      - scale without adding overhead
+      - let your people do what they're best at
     tier1_requires_approval: true
     tier2_requires_approval: true
-
   rate_limits:
     max_actions_per_hour: 30
     cooldown_after_error_minutes: 15
     backoff_multiplier: 2.0
     max_backoff_minutes: 60
-
 trust:
-  # Trust Phase A: all outputs require Brad approval via Telegram
-  # Trust Phase B: Tier 3+ autonomous, Tier 1-2 require approval
-  # Trust Phase C: full autonomy with policy gates only
-  current_phase: "B"
-
+  current_phase: B
 growth:
-  # 50/30/20 rule for content mix
   content_mix:
-    value_teaching: 0.50      # Frameworks, how-tos, insights
-    social_proof: 0.30        # Receipts, milestones, behind-the-scenes
-    engagement_bait: 0.20     # Questions, hot takes, polls
-
+    value_teaching: 0.5
+    social_proof: 0.3
+    engagement_bait: 0.2
   tiers:
     tier1:
-      description: "Kingmakers - 100K+ followers, industry leaders"
+      description: Kingmakers - 100K+ followers, industry leaders
       max_daily_interactions: 3
       requires_approval: true
     tier2:
-      description: "Amplifiers - 10K-100K followers, active voices"
+      description: Amplifiers - 10K-100K followers, active voices
       max_daily_interactions: 10
       requires_approval: true
     tier3:
-      description: "Community - 1K-10K followers, engaged practitioners"
+      description: Community - 1K-10K followers, engaged practitioners
       max_daily_interactions: 20
       requires_approval: false
-
 learning:
-  # Conservative early learning (first 4 weeks)
-  ema_alpha_early: 0.15       # First 4 weeks
-  ema_alpha_steady: 0.30      # After 4 weeks
+  ema_alpha_early: 0.15
+  ema_alpha_steady: 0.3
   early_period_weeks: 4
-  exploration_ratio_start: 0.40
-  exploration_ratio_floor: 0.20
-  exploration_decay_posts: 1000  # Posts to reach floor
+  exploration_ratio_start: 0.4
+  exploration_ratio_floor: 0.2
+  exploration_decay_posts: 1000
   min_samples_content_dna: 30
   min_samples_conversion: 10
   min_samples_audience: 5
   min_chains_for_model: 50
-  max_weight_change_daily: 0.05   # 5%
-  max_weight_change_weekly: 0.20  # 20%
-  outlier_threshold: 10.0         # 10x baseline
+  max_weight_change_daily: 0.05
+  max_weight_change_weekly: 0.2
+  outlier_threshold: 10.0
   outlier_min_baseline_samples: 50
-  decay_min_windows: 4            # Weeks before decay detection activates
-
+  decay_min_windows: 4
   sunday_cascade:
-    # Times in CT
-    follower_snapshot: "06:00"
-    audience_graph: "06:15"
-    content_dna: "06:30"
-    conversion_refit: "06:45"
-    voice_compilation: "07:00"
-    chain_model: "07:15"
-    decay_detection: "07:30"
-    model_compilation: "07:45"
-
+    follower_snapshot: 06:00
+    audience_graph: 06:15
+    content_dna: 06:30
+    conversion_refit: 06:45
+    voice_compilation: 07:00
+    chain_model: 07:15
+    decay_detection: 07:30
+    model_compilation: 07:45
 voice:
-  # Voice scoring thresholds
   min_score_to_post: 0.7
   target_score: 0.85
-  constitution_path: "data/voice_constitution.md"
-  corpus_path: "data/voice_corpus/"
-
+  constitution_path: data/voice_constitution.md
+  corpus_path: data/voice_corpus/
 telegram:
-  # Set TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID in ~/.zsh_env
-  bot_token: ""
-  chat_id: ""
-
+  bot_token: ''
+  chat_id: ''
 dashboard:
   port: 8500
-  host: "0.0.0.0"
-
+  host: 0.0.0.0
 database:
-  path: "data/groundswell.db"
+  path: data/groundswell.db
   wal_mode: true
