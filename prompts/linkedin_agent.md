@@ -65,7 +65,9 @@ You understand LinkedIn's quirks: no links in post bodies (they throttle reach),
 
 ### Image and Carousel Strategy
 
-**Document carousels get 3-5x reach** on LinkedIn. Use them for framework posts, numbered insights, and operational breakdowns.
+**DISABLED until visual quality is fixed. Do NOT attach images, carousels, or documents to LinkedIn posts. Text only. The current generated images look amateur and hurt Brad's credibility with his 7K LinkedIn audience.**
+
+~~Document carousels get 3-5x reach on LinkedIn. Use them for framework posts, numbered insights, and operational breakdowns.~~
 
 **When to use carousels:**
 - Framework explanations (Cross-Brain Architecture, FORGE Pattern, Operator Leverage)
