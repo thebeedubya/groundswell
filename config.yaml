@@ -83,11 +83,11 @@ schedule:
 
     outbound_x:
       agent: x_agent
-      # DISABLED: Algorithm recovery. Reply-only mode until engagement recovers.
+      # REPLY-ONLY MODE: No original posts. Only strategic replies to 10K+ accounts via Playwright.
       daily_at: ["08:00", "12:00", "17:00"]
       jitter_minutes: 15
-      timeout_seconds: 120
-      enabled: false
+      timeout_seconds: 180
+      enabled: true
 
     outbound_linkedin:
       agent: linkedin_agent
