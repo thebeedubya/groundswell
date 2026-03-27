@@ -67,11 +67,11 @@ schedule:
     # --- Platform agents (via Marketing Manager) ---
     marketing_manager:
       agent: marketing_manager
-      # Reduced: 3x/day max. Was 5x/day flooding the timeline.
+      # DISABLED: Algorithm recovery. No new content routing until engagement recovers.
       daily_at: ["08:00", "12:00", "17:00"]
       jitter_minutes: 15
       timeout_seconds: 180
-      enabled: true
+      enabled: false
 
     inbound_x:
       agent: x_agent
@@ -83,11 +83,11 @@ schedule:
 
     outbound_x:
       agent: x_agent
-      # MAX 3 posts/day. Quality over quantity. Was 5x/day tanking algorithm.
+      # DISABLED: Algorithm recovery. Reply-only mode until engagement recovers.
       daily_at: ["08:00", "12:00", "17:00"]
       jitter_minutes: 15
       timeout_seconds: 120
-      enabled: true
+      enabled: false
 
     outbound_linkedin:
       agent: linkedin_agent
@@ -166,11 +166,11 @@ schedule:
 
     threads_agent:
       agent: threads_agent
-      # Post at same windows as X, lighter volume
+      # DISABLED: Algorithm recovery across all platforms.
       daily_at: ["07:30", "12:00", "17:00"]
       jitter_minutes: 15
       timeout_seconds: 120
-      enabled: true
+      enabled: false
 
     publisher_threads:
       agent: publisher
