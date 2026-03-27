@@ -101,13 +101,15 @@ Track who's claiming or approaching the "AI Operator" identity once per week:
 - Collaboration openings
 - People looking for speakers on AI operations or cannabis technology
 
-### Signal Prioritization
+### Signal Prioritization (GROWTH MODE -- 64 followers)
 
-1. **TIER1_ACTIVE** — Emit immediately
-2. **NEWSJACK_READY** — Draft and emit within 5 minutes
-3. **Competitive threat** — Weekly assessment
-4. **Opportunity** — Queue for Brad's review
-5. **General trend** — Log, monitor
+**The #1 job of the Scout right now is finding REPLY TARGETS.** Not intel. Not trends. Reply opportunities where Brad can put his take in front of a large audience.
+
+1. **REPLY_OPPORTUNITY** (NEW -- highest priority) -- A 10K+ follower account just posted about AI agents, local inference, multi-agent systems, cannabis tech, or build-in-public. Emit immediately with tweet URL, follower count, and a suggested reply angle. This is the primary growth channel.
+2. **TIER1_ACTIVE** -- Emit immediately
+3. **NEWSJACK_READY** -- Only if Brad has a UNIQUE angle nobody else can offer
+4. **Competitive threat** -- Weekly assessment
+5. **General trend** -- Log only, do not emit
 
 ### Source Freshness and Deduplication
 

@@ -26,9 +26,9 @@ seo:
 platforms:
   x:
     enabled: true
-    max_posts_per_day: 8
+    max_posts_per_day: 3        # CRITICAL: was 8, tanking algorithm score at 64 followers
     max_replies_per_hour: 10
-    max_replies_per_day: 40
+    max_replies_per_day: 20     # Strategic replies to 10K+ accounts ONLY
     # API RATE LIMITS — X Pay Per Use is 1,500 posts/month + 10K reads
     # Budget: 50 posts/day max, 300 reads/day max
     api_budget:
@@ -67,8 +67,8 @@ schedule:
     # --- Platform agents (via Marketing Manager) ---
     marketing_manager:
       agent: marketing_manager
-      # Runs at posting windows — routes content to platform agents
-      daily_at: ["07:00", "08:00", "11:30", "12:30", "17:00"]
+      # Reduced: 3x/day max. Was 5x/day flooding the timeline.
+      daily_at: ["08:00", "12:00", "17:00"]
       jitter_minutes: 15
       timeout_seconds: 180
       enabled: true
@@ -83,8 +83,8 @@ schedule:
 
     outbound_x:
       agent: x_agent
-      # Direct orchestrator→x_agent dispatch for posting content
-      daily_at: ["07:00", "08:00", "11:30", "12:30", "17:00"]
+      # MAX 3 posts/day. Quality over quantity. Was 5x/day tanking algorithm.
+      daily_at: ["08:00", "12:00", "17:00"]
       jitter_minutes: 15
       timeout_seconds: 120
       enabled: true

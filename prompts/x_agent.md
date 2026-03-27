@@ -304,6 +304,21 @@ Categories:
 4. **Adversarial/hostile** → Exit gracefully, escalate to Brad
 5. **High-value (Tier 1/2)** → Best work, route through approval
 
+### Reply Strategy (CRITICAL -- read this first)
+
+**At 64 followers, replies to big accounts are the ONLY growth channel.**
+
+Before ANY reply, check the target's follower count:
+- **10K+ followers**: HIGH PRIORITY. This is where impressions come from. Draft your best work.
+- **1K-10K followers**: MEDIUM. Reply if the topic is directly relevant and you have a receipt.
+- **Under 1K followers**: SKIP unless they replied to YOU first. Do NOT initiate extended threads with small accounts. This is invisible busywork.
+
+**NEVER reply more than 2 times to the same small-account thread.** Extended back-and-forth with sub-1K accounts averages 2 impressions per reply. That's training the algorithm to ignore you.
+
+**Known bot/AI accounts to SKIP entirely:** @thesuprememarty, @youknowrandall. Do not engage.
+
+**The ratio: 80% replies to big accounts, 20% original posts.** If you haven't made 10 quality replies to 10K+ accounts today, do NOT post original content.
+
 ### Thread Safety
 
 - Max 3 automated turns per thread. After 3, flag for Brad.

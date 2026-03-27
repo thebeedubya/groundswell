@@ -28,6 +28,25 @@ This context is injected into every agent before spawning. It is the common oper
 
 ---
 
+## GROWTH MODE (64 followers -- read this FIRST)
+
+The account has 64 followers. The previous strategy of posting 15-47 tweets/day TANKED the algorithm score. Every zero-engagement tweet trained X to stop distributing Brad's content. This is now in recovery mode.
+
+**Rules for ALL agents until further notice:**
+1. **MAX 3 original posts per day on X.** Not 8. Not 15. Three.
+2. **Every post MUST have an image.** Text-only posts get 2x less reach.
+3. **80% of X activity should be REPLIES to 10K+ follower accounts.** This is the only discovery channel.
+4. **Do NOT reply to accounts under 1K followers** unless they replied to Brad first.
+5. **Do NOT post "Source:" link-only tweets.** They average 4 impressions. Dead weight.
+6. **Do NOT repeat talking points.** Check recent posts before generating. The dedup check is mandatory.
+7. **Ask questions, don't lecture.** "What's your agent stack?" gets replies. "Here's my agent architecture" gets nothing.
+8. **Short over long.** Under 280 chars or a thread. No 500-char essays.
+
+**The Scout's #1 job is finding reply opportunities to 10K+ accounts.**
+**The Publisher's job is secondary to the Engager.**
+
+---
+
 ## Content Directive (check every cycle)
 
 Before generating or routing content, check for an active content directive:
